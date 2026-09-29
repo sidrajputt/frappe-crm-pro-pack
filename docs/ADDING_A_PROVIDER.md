@@ -7,7 +7,7 @@ A provider is a small class; the scheduler, permissions, notifications and UI do
 
 ```python
 # my_app/zoom.py
-from crm_meetings.providers.base import MeetingProvider, ProviderError, ProviderNotConfigured
+from crm_addons.providers.base import MeetingProvider, ProviderError, ProviderNotConfigured
 
 
 class ZoomProvider(MeetingProvider):
@@ -17,7 +17,7 @@ class ZoomProvider(MeetingProvider):
     implemented = True
 
     def status(self):
-        # {"ready": bool, "message": str} - shown on CRM Meetings Settings
+        # {"ready": bool, "message": str} - shown on CRM Addons Settings
         return {"ready": bool(credentials_ok()), "message": "Add the Zoom credentials."}
 
     def create(self, meeting, notify):
@@ -56,13 +56,13 @@ itself, return `sync_status: "Not synced"` and the app emails the guests with a 
 In your app's `hooks.py`:
 
 ```python
-crm_meetings_providers = {"Zoom": "my_app.zoom.ZoomProvider"}
+crm_addons_providers = {"Zoom": "my_app.zoom.ZoomProvider"}
 ```
 
 ## 3. Make it selectable
 
 The meeting's **Meeting Provider** field is a Select. Add your provider's key to its options with a
-Property Setter (or a fixture), and, if you want it as a default, to **CRM Meetings Settings >
+Property Setter (or a fixture), and, if you want it as a default, to **CRM Addons Settings >
 Default Provider**:
 
 ```
@@ -77,5 +77,5 @@ class and the hook.
 
 ## 4. Test it
 
-Follow `crm_meetings/meetings/doctype/crm_meeting/test_crm_meeting.py`: it replaces the external
+Follow `crm_addons/meetings/doctype/crm_meeting/test_crm_meeting.py`: it replaces the external
 service with a small fake and asserts on what was sent, without touching any real account.

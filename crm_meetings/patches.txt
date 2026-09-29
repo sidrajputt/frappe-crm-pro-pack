@@ -1,4 +1,0 @@
-[pre_model_sync]
-
-[post_model_sync]
-crm_meetings.patches.upgrade_legacy_meetings

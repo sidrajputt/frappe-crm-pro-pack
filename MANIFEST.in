@@ -1,10 +1,16 @@
 include MANIFEST.in
 include requirements.txt
+include README.md
+include LICENSE
+include CHANGELOG.md
+include pyproject.toml
 include *.json
-recursive-include crm_meetings *.json
-recursive-include crm_meetings *.md
-recursive-include crm_meetings *.py
-recursive-include crm_meetings *.html
-recursive-include crm_meetings *.js
-recursive-include crm_meetings *.css
-recursive-exclude crm_meetings *.pyc
+recursive-include crm_addons *.json
+recursive-include crm_addons *.md
+recursive-include crm_addons *.py
+recursive-include crm_addons *.html
+recursive-include crm_addons *.js
+recursive-include crm_addons *.css
+recursive-include crm_addons *.svg
+recursive-include crm_addons *.txt
+recursive-exclude crm_addons *.pyc

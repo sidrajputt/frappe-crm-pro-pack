@@ -1,0 +1,296 @@
+{
+ "actions": [],
+ "creation": "2026-09-25 04:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "status_section",
+  "setup_html",
+  "provider_section",
+  "default_provider",
+  "default_duration",
+  "default_add_video_meeting",
+  "google_section",
+  "google_calendar",
+  "use_personal_calendars",
+  "notify_section",
+  "notify_on_schedule",
+  "reminders_enabled",
+  "reminder_minutes_before",
+  "early_reminder_minutes",
+  "column_break_notify",
+  "email_reminders",
+  "remind_guests",
+  "followup_section",
+  "enable_follow_ups",
+  "follow_up_reminders",
+  "column_break_followup",
+  "escalate_after_attempts",
+  "unreachable_lead_status",
+  "insights_section",
+  "lead_scoring_enabled",
+  "stale_lead_days",
+  "column_break_insights",
+  "missed_call_whatsapp_text",
+  "ui_section",
+  "show_record_buttons",
+  "show_list_button",
+  "show_follow_up_button",
+  "show_floating_buttons",
+  "show_record_tabs",
+  "hide_deals_menu",
+  "hide_convert_button"
+ ],
+ "fields": [
+  {
+   "fieldname": "status_section",
+   "fieldtype": "Section Break",
+   "label": "Setup Status & Guide"
+  },
+  {
+   "fieldname": "setup_html",
+   "fieldtype": "HTML",
+   "label": "Setup"
+  },
+  {
+   "fieldname": "provider_section",
+   "fieldtype": "Section Break",
+   "label": "Meeting Provider"
+  },
+  {
+   "fieldname": "default_provider",
+   "fieldtype": "Select",
+   "label": "Default Provider",
+   "options": "Google Meet\nManual Link",
+   "default": "Google Meet",
+   "description": "Zoom and Microsoft Teams are coming soon. Other apps can add providers through a hook - see docs/ADDING_A_PROVIDER.md."
+  },
+  {
+   "fieldname": "default_duration",
+   "fieldtype": "Int",
+   "label": "Default Duration (minutes)",
+   "default": "30"
+  },
+  {
+   "fieldname": "default_add_video_meeting",
+   "fieldtype": "Check",
+   "label": "Add a video meeting by default",
+   "default": "1"
+  },
+  {
+   "fieldname": "google_section",
+   "fieldtype": "Section Break",
+   "label": "Google Calendar / Google Meet"
+  },
+  {
+   "fieldname": "google_calendar",
+   "fieldtype": "Link",
+   "label": "Company Google Calendar",
+   "options": "Google Calendar",
+   "description": "Connected once by an admin under Google Calendar. All meetings are created on this calendar, so sales users never have to log in to Google."
+  },
+  {
+   "fieldname": "use_personal_calendars",
+   "fieldtype": "Check",
+   "label": "Use each user's own Google Calendar when they have one",
+   "default": "0",
+   "description": "Off: every meeting is created on the company calendar above. On: a user with their own connected Google Calendar organizes their own meetings."
+  },
+  {
+   "fieldname": "notify_section",
+   "fieldtype": "Section Break",
+   "label": "Notifications & Reminders"
+  },
+  {
+   "fieldname": "notify_on_schedule",
+   "fieldtype": "Check",
+   "label": "Send in-app CRM notifications when a meeting is scheduled, changed or cancelled",
+   "default": "1"
+  },
+  {
+   "fieldname": "reminders_enabled",
+   "fieldtype": "Check",
+   "label": "Send reminders before a meeting starts",
+   "default": "1"
+  },
+  {
+   "fieldname": "reminder_minutes_before",
+   "fieldtype": "Int",
+   "label": "Reminder (minutes before)",
+   "default": "30",
+   "depends_on": "reminders_enabled"
+  },
+  {
+   "fieldname": "early_reminder_minutes",
+   "fieldtype": "Int",
+   "label": "Early reminder (minutes before, 0 = off)",
+   "default": "0",
+   "depends_on": "reminders_enabled",
+   "description": "For example 1440 sends a second reminder one day before."
+  },
+  {
+   "fieldname": "column_break_notify",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "email_reminders",
+   "fieldtype": "Check",
+   "label": "Email reminders to CRM team members",
+   "default": "1",
+   "depends_on": "reminders_enabled"
+  },
+  {
+   "fieldname": "remind_guests",
+   "fieldtype": "Check",
+   "label": "Also email reminders to external guests",
+   "default": "0",
+   "depends_on": "reminders_enabled"
+  },
+  {
+   "fieldname": "followup_section",
+   "fieldtype": "Section Break",
+   "label": "Follow-ups"
+  },
+  {
+   "fieldname": "enable_follow_ups",
+   "fieldtype": "Check",
+   "label": "Enable follow-ups (call attempts and outcomes)",
+   "default": "1"
+  },
+  {
+   "fieldname": "follow_up_reminders",
+   "fieldtype": "Check",
+   "label": "Remind the follow-up owner when a follow-up is due",
+   "default": "1",
+   "depends_on": "enable_follow_ups"
+  },
+  {
+   "fieldname": "column_break_followup",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "escalate_after_attempts",
+   "fieldtype": "Int",
+   "label": "Escalate after this many calls in a row that were not picked or connected (0 = off)",
+   "default": "3",
+   "depends_on": "enable_follow_ups",
+   "description": "After this many calls in a row without a connect, a note is added to the Lead and its owner and the Sales Managers are notified."
+  },
+  {
+   "fieldname": "unreachable_lead_status",
+   "fieldtype": "Link",
+   "label": "Lead status to set when escalated",
+   "options": "CRM Lead Status",
+   "depends_on": "enable_follow_ups",
+   "description": "Optional. Leave empty to only notify."
+  },
+  {
+   "fieldname": "insights_section",
+   "fieldtype": "Section Break",
+   "label": "Scoring & Stale Leads"
+  },
+  {
+   "fieldname": "lead_scoring_enabled",
+   "fieldtype": "Check",
+   "label": "Score Leads from their activity",
+   "default": "1",
+   "description": "A 0-100 score from calls, outcomes, meetings and recent activity, shown as the Lead Score column and on the Follow-ups tab."
+  },
+  {
+   "fieldname": "stale_lead_days",
+   "fieldtype": "Int",
+   "label": "Alert the owner after this many days without activity (0 = off)",
+   "default": "7",
+   "description": "Open Leads with no comment, email, call, task, note, follow-up or meeting for this long."
+  },
+  {
+   "fieldname": "column_break_insights",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "missed_call_whatsapp_text",
+   "fieldtype": "Small Text",
+   "label": "Default WhatsApp message after a missed call",
+   "default": "Hi, I just tried to call you but could not reach you. When is a good time to talk?",
+   "description": "Offered when a call is logged as Did Not Pick or Did Not Connect and WhatsApp is set up in CRM."
+  },
+  {
+   "fieldname": "ui_section",
+   "fieldtype": "Section Break",
+   "label": "CRM Interface"
+  },
+  {
+   "fieldname": "show_record_buttons",
+   "fieldtype": "Check",
+   "label": "Show a \"Schedule Meeting\" button on Lead pages",
+   "default": "1",
+   "description": "Turn this off if your CRM already has a Meetings tab."
+  },
+  {
+   "fieldname": "show_list_button",
+   "fieldtype": "Check",
+   "label": "Show \"Meetings\" and \"Follow-ups\" buttons on the Leads list pages",
+   "default": "1"
+  },
+  {
+   "fieldname": "show_follow_up_button",
+   "fieldtype": "Check",
+   "label": "Show an \"Add Follow Up\" button at the top of the Lead page (next to Schedule Meeting)",
+   "default": "1",
+   "depends_on": "enable_follow_ups"
+  },
+  {
+   "fieldname": "show_floating_buttons",
+   "fieldtype": "Check",
+   "label": "Show floating Meetings / Follow-ups buttons on the Kanban view of Leads",
+   "default": "1"
+  },
+  {
+   "fieldname": "show_record_tabs",
+   "fieldtype": "Check",
+   "label": "Add Meetings and Follow-ups tabs to Lead pages",
+   "default": "1"
+  },
+  {
+   "fieldname": "hide_deals_menu",
+   "fieldtype": "Check",
+   "label": "Hide \"Deals\" from the CRM side menu",
+   "default": "0",
+   "description": "Only hides it from the screen. The Deals pages are still there for anyone who opens their address."
+  },
+  {
+   "fieldname": "hide_convert_button",
+   "fieldtype": "Check",
+   "label": "Hide the \"Convert to Deal\" button on the Lead page",
+   "default": "0",
+   "description": "Only hides the button. It matches the button's label, so it may need a look after a CRM update."
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-09-30 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Meetings",
+ "name": "CRM Addons Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Sales Manager"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

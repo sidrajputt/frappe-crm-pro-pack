@@ -1,0 +1,5 @@
+[pre_model_sync]
+
+[post_model_sync]
+crm_addons.patches.upgrade_legacy_meetings
+crm_addons.patches.follow_up_outcomes

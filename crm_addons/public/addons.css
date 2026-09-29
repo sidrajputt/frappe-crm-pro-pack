@@ -1,0 +1,148 @@
+/* CRM Add-ons UI, injected into the Frappe CRM page. Everything is prefixed cra- and never
+ * touches CRM's own classes. Follows CRM's light / dark theme (html[data-theme]). */
+:root {
+	--cra-bg: #ffffff;
+	--cra-soft: #f7f7f7;
+	--cra-hover: #efefef;
+	--cra-border: #e4e4e4;
+	--cra-text: #171717;
+	--cra-muted: #6b6b6b;
+	--cra-primary: #171717;
+	--cra-primary-text: #ffffff;
+	--cra-green: #188038;
+	--cra-green-bg: #e6f4ea;
+	--cra-amber: #a35a00;
+	--cra-amber-bg: #fef3e0;
+	--cra-red: #c5221f;
+	--cra-red-bg: #fce8e6;
+	--cra-blue: #174ea6;
+	--cra-blue-bg: #e8f0fe;
+	--cra-shadow: 0 8px 28px rgba(15, 23, 42, 0.18);
+}
+:root[data-theme="dark"] {
+	--cra-bg: #1a1a1a;
+	--cra-soft: #222222;
+	--cra-hover: #2c2c2c;
+	--cra-border: #333333;
+	--cra-text: #ededed;
+	--cra-muted: #a0a0a0;
+	--cra-primary: #ededed;
+	--cra-primary-text: #171717;
+	--cra-green: #81c995;
+	--cra-green-bg: #163322;
+	--cra-amber: #fdc069;
+	--cra-amber-bg: #3a2a10;
+	--cra-red: #f28b82;
+	--cra-red-bg: #3c1a18;
+	--cra-blue: #8ab4f8;
+	--cra-blue-bg: #172a4a;
+	--cra-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+}
+
+.cra-i { width: 16px; height: 16px; flex: none; }
+
+/* floating buttons ----------------------------------------------------------------------- */
+.cra-fab { position: fixed; right: 20px; bottom: 20px; z-index: 40; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.cra-fab-btn {
+	position: relative; display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 16px;
+	border-radius: 999px; border: 1px solid var(--cra-border); background: var(--cra-bg); color: var(--cra-text);
+	font: 500 13px/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; cursor: pointer; box-shadow: var(--cra-shadow);
+}
+.cra-fab-btn:hover { background: var(--cra-hover); }
+.cra-badge {
+	min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--cra-amber-bg); color: var(--cra-amber);
+	font-size: 11px; font-weight: 600; line-height: 18px; text-align: center;
+}
+.cra-badge.cra-late { background: var(--cra-red); color: #fff; }
+.cra-badge[hidden] { display: none; }
+
+/* tab panel on the Lead / Deal page ------------------------------------------------------- */
+/* CRM styles every [role=tabpanel] as a flex row; ours must stack its children, so out-rank that rule */
+div.cra-tabpanel[role="tabpanel"]:not([hidden]) { display: block; }
+.cra-tabpanel { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 16px 20px 32px; color: var(--cra-text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.cra-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.cra-panel-title { display: inline-flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; }
+.cra-facts { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.cra-next { display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin-bottom: 12px; border: 1px solid var(--cra-border); border-radius: 10px; background: var(--cra-soft); }
+.cra-next.cra-late { border-color: var(--cra-red); background: var(--cra-red-bg); color: var(--cra-red); }
+.cra-next-text { flex: 1; min-width: 0; }
+.cra-strong { font-weight: 600; }
+.cra-muted { color: var(--cra-muted); }
+.cra-empty { padding: 28px 12px; text-align: center; color: var(--cra-muted); }
+.cra-empty.cra-bad { color: var(--cra-red); }
+
+.cra-list { display: flex; flex-direction: column; gap: 10px; }
+.cra-card { padding: 12px 14px; border: 1px solid var(--cra-border); border-radius: 10px; background: var(--cra-bg); }
+.cra-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cra-card-title { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.cra-card-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+.cra-remark { margin-top: 8px; white-space: pre-wrap; word-break: break-word; }
+.cra-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; color: var(--cra-muted); font-size: 12px; }
+.cra-link { color: var(--cra-text); font-weight: 600; text-decoration: none; }
+.cra-link:hover { text-decoration: underline; }
+
+/* chips and pills ------------------------------------------------------------------------- */
+.cra-chip { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 999px; background: var(--cra-hover); color: var(--cra-text); font-size: 12px; font-weight: 500; white-space: nowrap; }
+.cra-chip.cra-green { background: var(--cra-green-bg); color: var(--cra-green); }
+.cra-chip.cra-amber { background: var(--cra-amber-bg); color: var(--cra-amber); }
+.cra-chip.cra-red { background: var(--cra-red-bg); color: var(--cra-red); }
+.cra-chip.cra-blue { background: var(--cra-blue-bg); color: var(--cra-blue); }
+.cra-btn-chip { border: 1px solid var(--cra-border); background: var(--cra-bg); cursor: pointer; }
+.cra-btn-chip:hover { background: var(--cra-hover); }
+.cra-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.cra-pill { height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--cra-border); background: var(--cra-bg); color: var(--cra-text); font: 500 13px/1 inherit; cursor: pointer; }
+.cra-pill:hover { background: var(--cra-hover); }
+.cra-pill.cra-on { border-color: transparent; background: var(--cra-primary); color: var(--cra-primary-text); }
+.cra-pill.cra-on.cra-green { background: var(--cra-green-bg); color: var(--cra-green); border-color: var(--cra-green); }
+.cra-pill.cra-on.cra-amber { background: var(--cra-amber-bg); color: var(--cra-amber); border-color: var(--cra-amber); }
+.cra-pill.cra-on.cra-red { background: var(--cra-red-bg); color: var(--cra-red); border-color: var(--cra-red); }
+
+/* buttons and inputs ---------------------------------------------------------------------- */
+.cra-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--cra-border); background: var(--cra-bg); color: var(--cra-text); font: 500 13px/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; text-decoration: none; cursor: pointer; }
+.cra-btn:hover { background: var(--cra-hover); }
+.cra-btn:disabled { opacity: 0.55; cursor: default; }
+.cra-btn.cra-primary { border-color: transparent; background: var(--cra-primary); color: var(--cra-primary-text); }
+.cra-btn.cra-primary:hover { opacity: 0.88; }
+.cra-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 0; border-radius: 7px; background: transparent; color: var(--cra-muted); cursor: pointer; }
+.cra-icon-btn:hover { background: var(--cra-hover); color: var(--cra-text); }
+.cra-input { width: 100%; padding: 7px 10px; border: 1px solid var(--cra-border); border-radius: 8px; background: var(--cra-soft); color: var(--cra-text); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; box-sizing: border-box; }
+.cra-input:focus { outline: 2px solid var(--cra-blue); outline-offset: -1px; }
+.cra-narrow { width: auto; min-width: 150px; }
+textarea.cra-input { resize: vertical; }
+
+/* modal ----------------------------------------------------------------------------------- */
+.cra-overlay { position: fixed; inset: 0; z-index: 2147482000; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(15, 23, 42, 0.5); }
+.cra-dialog { width: min(520px, 100%); max-height: calc(100vh - 32px); display: flex; flex-direction: column; border-radius: 14px; background: var(--cra-bg); color: var(--cra-text); box-shadow: var(--cra-shadow); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.cra-dialog.cra-wide { width: min(760px, 100%); height: min(680px, calc(100vh - 32px)); }
+.cra-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--cra-border); }
+.cra-dialog-title { font-size: 16px; font-weight: 600; }
+.cra-dialog-body { padding: 16px; overflow-y: auto; }
+.cra-field { margin-bottom: 14px; }
+.cra-field[hidden] { display: none; }
+.cra-label { display: block; margin-bottom: 6px; color: var(--cra-muted); font-size: 12px; font-weight: 500; }
+.cra-grid { display: grid; grid-template-columns: 140px 1fr; gap: 12px; }
+.cra-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.cra-check { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 8px; font-weight: 500; cursor: pointer; }
+.cra-hint { margin-bottom: 10px; color: var(--cra-muted); font-size: 12px; }
+.cra-error { margin-bottom: 10px; padding: 8px 10px; border-radius: 8px; background: var(--cra-red-bg); color: var(--cra-red); font-size: 13px; }
+.cra-error[hidden] { display: none; }
+.cra-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* queue ----------------------------------------------------------------------------------- */
+.cra-queue-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.cra-tabs { display: flex; gap: 4px; }
+.cra-tab { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: var(--cra-muted); font: 500 13px/1 inherit; cursor: pointer; }
+.cra-tab:hover { background: var(--cra-hover); }
+.cra-tab.cra-on { background: var(--cra-hover); color: var(--cra-text); }
+.cra-count { min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--cra-border); font-size: 11px; line-height: 18px; text-align: center; }
+.cra-count.cra-late { background: var(--cra-red); color: #fff; }
+
+/* toast ----------------------------------------------------------------------------------- */
+.cra-toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 2147483500; max-width: min(480px, calc(100vw - 32px)); padding: 10px 16px; border-radius: 10px; background: var(--cra-primary); color: var(--cra-primary-text); font: 500 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; box-shadow: var(--cra-shadow); }
+.cra-toast.cra-bad { background: var(--cra-red); color: #fff; }
+
+@media (max-width: 560px) {
+	.cra-grid { grid-template-columns: 1fr; }
+	.cra-fab { right: 12px; bottom: 12px; }
+	.cra-card-top { flex-wrap: wrap; }
+}
