@@ -21,10 +21,22 @@ NEW_SETTING_DEFAULTS = {
 	"follow_up_reminders": 1,
 	"escalate_after_attempts": 3,
 	"show_floating_buttons": 1,
+	"show_sidebar_links": 1,
 	"show_record_tabs": 1,
 	"show_follow_up_button": 1,
 	"hide_deals_menu": 0,
+	"hide_notes_menu": 0,
+	"hide_tasks_menu": 0,
+	"hide_call_logs_menu": 0,
 	"hide_convert_button": 0,
+	"campaigns_enabled": 1,
+	"campaign_batch_size": 100,
+	"campaign_rate_per_minute": 300,
+	"campaign_max_retries": 2,
+	"whatsapp_consent_mode": "Require opt-in",
+	"campaign_alerts_enabled": 1,
+	"campaign_alert_failure_percent": 30,
+	"campaign_alert_min_messages": 20,
 }
 
 NEXT_FOLLOWUP_FIELD = {
@@ -70,6 +82,25 @@ NEXT_MEETING_FIELD = {
 	"report_hide": 0,
 	"description": "Set automatically by CRM Pro Pack.",
 }
+
+# Consent is the one thing a campaign must never lose, so this field is NOT removed on uninstall.
+WA_OPT_IN_FIELD = {
+	"fieldname": "crm_wa_opt_in",
+	"fieldtype": "Check",
+	"label": "WhatsApp Opt-in",
+	"no_copy": 1,
+	"in_standard_filter": 1,
+	"description": "The lead agreed to receive WhatsApp messages. Meta requires this for marketing templates.",
+}
+
+STARTER_EMAIL_TEMPLATES = [
+	(
+		"Follow-up (starter)",
+		"Following up on your enquiry, {{ first_name }}",
+		"<p>Hi {{ first_name }},</p><p>{{ owner_name or sender_name }} from our team is following up on your enquiry. "
+		"Reply to this email or call us whenever it suits you.</p><p>Regards,<br>{{ sender_name }}</p>",
+	),
+]
 
 # -- CRM scripts ----------------------------------------------------------------------
 # Loaded by CRM's own script engine, so no CRM source file is ever edited.
@@ -131,6 +162,9 @@ async function setupList() {
 	const actions = [
 		{ label: "Meetings", icon: "calendar", onClick: () => cm.openCalendar({ reference_doctype: "__DT__", view: "agenda" }) },
 	]
+	if (config.campaigns_enabled) {
+		actions.push({ label: "Campaigns", icon: "send", onClick: () => cm.openCampaigns() })
+	}
 	if (config.follow_ups_enabled) {
 		actions.push({
 			label: "Follow-ups",
@@ -250,6 +284,7 @@ def run_all():
 	ensure_dashboard()
 	ensure_workspace()
 	backfill_next_meetings()
+	ensure_campaign_setup()
 
 
 # -- Desk workspace --------------------------------------------------------------------------
@@ -262,6 +297,10 @@ WORKSPACE_SHORTCUTS = [
 	("Follow-ups", "DocType", "CRM Follow Up"),
 	("Follow-up Templates", "DocType", "CRM Follow Up Template"),
 	("Sales Dashboard", "URL", "/sales-dashboard"),
+	("Campaign Manager", "URL", "/campaigns"),
+	("Campaigns", "DocType", "CRM Campaign"),
+	("Campaign Email Templates", "DocType", "CRM Campaign Email Template"),
+	("Campaign Opt-outs", "DocType", "CRM Campaign Opt Out"),
 ]
 
 
@@ -333,6 +372,24 @@ def ensure_settings():
 		if not stored:
 			frappe.db.set_single_value("CRM Addons Settings", fieldname, value)
 	frappe.clear_document_cache("CRM Addons Settings", "CRM Addons Settings")
+
+
+def ensure_campaign_setup():
+	"""Campaign Manager: the Lead's consent field and one starter email template. Idempotent, and it
+	never touches anything an admin already changed."""
+	from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
+
+	create_custom_fields({"CRM Lead": [WA_OPT_IN_FIELD]}, ignore_validate=True)
+	if frappe.db.get_default("crm_addons_campaign_templates_seeded") or not frappe.db.exists(
+		"DocType", "CRM Campaign Email Template"
+	):
+		return
+	for title, subject, body in STARTER_EMAIL_TEMPLATES:
+		if not frappe.db.exists("CRM Campaign Email Template", title):
+			frappe.get_doc(
+				{"doctype": "CRM Campaign Email Template", "template_name": title, "subject": subject, "body_html": body, "enabled": 1}
+			).insert(ignore_permissions=True)
+	frappe.db.set_default("crm_addons_campaign_templates_seeded", "1")
 
 
 def backfill_next_meetings():

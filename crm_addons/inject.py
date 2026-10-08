@@ -8,6 +8,8 @@ import os
 
 import frappe
 
+from crm_addons import debuglog
+
 MARKER = b"crm_addons/addons.js"
 
 
@@ -42,9 +44,13 @@ def add_addon_script(response=None, request=None, **kwargs):
 		body = response.get_data()
 		if MARKER in body or b"</body>" not in body:
 			return
+		version = _asset_version()
+		# TEMPORARY diagnostics (docs/DEBUGGING.md): load first, so it also sees what the other scripts do
+		diagnostics = f'<script src="/assets/crm_addons/debug.js?v={version}"></script>' if debuglog.enabled() else ""
 		tag = (
-			f'<link rel="stylesheet" href="/assets/crm_addons/addons.css?v={_asset_version()}">'
-			f'<script src="/assets/crm_addons/addons.js?v={_asset_version()}" defer></script>'
+			f'<link rel="stylesheet" href="/assets/crm_addons/addons.css?v={version}">'
+			f'{diagnostics}'
+			f'<script src="/assets/crm_addons/addons.js?v={version}" defer></script>'
 		).encode()
 		response.set_data(body.replace(b"</body>", tag + b"</body>", 1))
 	except Exception:

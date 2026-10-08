@@ -6,6 +6,8 @@ from zoneinfo import ZoneInfo
 import frappe
 from frappe.utils import escape_html, get_datetime, get_url
 
+from crm_addons import debuglog
+
 MANAGER_ROLES = ("System Manager", "Sales Manager")
 REFERENCE_DOCTYPES = ("CRM Lead",)
 
@@ -151,6 +153,7 @@ def refresh_next_meeting(reference_doctype, reference_docname):
 	scoring.refresh_score(reference_doctype, reference_docname)
 
 
+@debuglog.traced("utils.refresh_stale_next_meetings")
 def refresh_stale_next_meetings():
 	"""Hourly: a meeting that has passed must stop showing as the "next" one."""
 	now = frappe.utils.now_datetime()

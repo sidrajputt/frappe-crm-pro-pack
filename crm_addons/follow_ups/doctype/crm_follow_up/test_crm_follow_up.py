@@ -13,6 +13,7 @@ import frappe
 from frappe.utils import add_to_date, now_datetime
 
 from crm_addons import api, dashboard, followups, install, reports, scoring, stale
+from crm_addons.meetings.doctype.crm_meeting.test_crm_meeting import FakeGoogle, google_patch
 from crm_addons.meetings.doctype.crm_meeting.test_crm_meeting import TestCase as MeetingsTestCase
 from crm_addons.patches import follow_up_outcomes
 
@@ -373,6 +374,8 @@ class TestSalesReport(FollowUpBase):
 			self.assertEqual([u["name"] for u in data["scope"]["users"]], [self.rep.name])
 
 	def test_users_without_a_sales_role_cannot_open_it(self):
+		self.addCleanup(setattr, frappe.flags, "in_test", frappe.flags.in_test)
+		frappe.flags.in_test = False  # Frappe's only_for() lets everyone through while tests run; check it for real
 		nobody = self.make_user("nobody.test@example.org", "Blogger")
 		frappe.set_user(nobody.name)
 		with self.assertRaises(frappe.PermissionError):
@@ -449,3 +452,340 @@ class TestSalesReport(FollowUpBase):
 		reports.export_report(self.today, self.today, user="Administrator", format="csv")
 		lines = frappe.response["filecontent"].decode("utf-8-sig").strip().splitlines()
 		self.assertEqual(len(lines), 2)  # header and the one call this person made
+
+
+class TestFollowUpWorkspace(FollowUpBase):
+	"""The Follow-ups page: filters, tabs, numbers, reschedule and bulk actions, and who sees whose."""
+
+	def setUp(self):
+		super().setUp()
+		now = now_datetime()
+		# one lead, one open follow-up (the newest closes the earlier ones)
+		self.log("Did Not Pick", followed_up_on=str(add_to_date(now, days=-5)), next_follow_up_on=str(add_to_date(now, days=-1)))
+		self.rep = self.owner
+		self.other_lead = frappe.get_doc(
+			{"doctype": "CRM Lead", "first_name": "Zed", "last_name": "Other", "email": "zed.other@example.com", "mobile_no": "5550101", "lead_owner": "Administrator"}
+		).insert(ignore_permissions=True)
+		frappe.db.set_value("CRM Follow Up", self.rows()[0].name, "assigned_to", "Administrator")
+		self.mine = followups.save_follow_up(
+			frappe.as_json({
+				"reference_doctype": "CRM Lead", "reference_docname": self.other_lead.name, "outcome": "Interested",
+				"followed_up_on": str(add_to_date(now, days=-2)), "next_follow_up_on": str(add_to_date(now, days=3)),
+				"assigned_to": self.rep.name, "remark": "Wants a quote",
+			})
+		)
+
+	def workspace(self, **kw):
+		return followups.get_workspace(**kw)
+
+	def test_manager_sees_everyone_by_default(self):
+		data = self.workspace()
+		self.assertEqual(data["scope"]["value"], "all")
+		self.assertEqual(data["counts"]["overdue"], 1)
+		self.assertEqual(data["counts"]["upcoming"], 1)
+		self.assertEqual({o["name"] for o in data["owners"]}, {"Administrator", self.rep.name})
+		self.assertEqual(data["items"][0]["bucket"], "overdue")
+		self.assertEqual(data["items"][0]["reference_title"], "Meeting Tester")
+
+	def test_manager_can_narrow_to_one_owner_or_to_themselves(self):
+		self.assertEqual(self.workspace(tab="upcoming", owner=self.rep.name)["total"], 1)
+		self.assertEqual(self.workspace(tab="upcoming", owner="Administrator")["total"], 0)
+		self.assertEqual(self.workspace(scope="mine", tab="overdue")["total"], 1)
+		self.assertEqual(self.workspace(scope="mine", tab="upcoming")["total"], 0)
+
+	def test_sales_user_only_gets_their_own_whatever_is_asked(self):
+		frappe.set_user(self.rep.name)
+		for kw in ({}, {"scope": "all"}, {"owner": "Administrator"}, {"scope": "all", "owner": "Administrator"}):
+			data = self.workspace(tab="upcoming", **kw)
+			self.assertEqual(data["scope"]["value"], "mine")
+			self.assertFalse(data["scope"]["is_manager"])
+			self.assertEqual([str(i["name"]) for i in data["items"]], [str(self.mine["items"][0]["name"])])
+			self.assertEqual(data["owners"], [])
+			self.assertEqual(data["counts"]["overdue"], 0)
+
+	def test_search_matches_lead_name_phone_and_remark(self):
+		self.assertEqual(self.workspace(tab="upcoming", search="Zed")["total"], 1)
+		self.assertEqual(self.workspace(tab="upcoming", search="5550101")["total"], 1)
+		self.assertEqual(self.workspace(tab="upcoming", search="quote")["total"], 1)
+		self.assertEqual(self.workspace(tab="upcoming", search="nobody-has-this")["total"], 0)
+		self.assertEqual(self.workspace(tab="overdue", search="Zed")["total"], 0)
+
+	def test_outcome_filter_and_row_details(self):
+		data = self.workspace(tab="upcoming", outcome="Interested")
+		self.assertEqual(data["total"], 1)
+		item = data["items"][0]
+		self.assertEqual((item["phone"], item["outcome"], item["remark"]), ("5550101", "Interested", "Wants a quote"))
+		self.assertEqual(self.workspace(tab="upcoming", outcome="Did Not Pick")["total"], 0)
+
+	def test_date_range_limits_the_due_date(self):
+		today = str(now_datetime().date())
+		self.assertEqual(self.workspace(tab="overdue", from_date=today, to_date=today)["total"], 0)
+		wide = self.workspace(tab="upcoming", from_date=str(add_to_date(now_datetime(), days=-10).date()), to_date=str(add_to_date(now_datetime(), days=10).date()))
+		self.assertEqual(wide["total"], 1)
+		self.assertFalse(wide["done_window"]["default"])
+
+	def test_done_tab_lists_closed_follow_ups(self):
+		followups.complete_follow_up(self.mine["items"][0]["name"])
+		data = self.workspace(tab="done", from_date=str(add_to_date(now_datetime(), days=1).date()), to_date=str(add_to_date(now_datetime(), days=5).date()))
+		self.assertEqual(data["total"], 1)
+		self.assertEqual(data["items"][0]["bucket"], "done")
+		self.assertEqual(self.workspace()["counts"]["upcoming"], 0)
+
+	def test_paging(self):
+		first = self.workspace(tab="overdue", page=1, page_length=1)
+		self.assertEqual((len(first["items"]), first["total"]), (1, 1))
+		self.assertEqual(self.workspace(tab="overdue", page=2, page_length=1)["items"], [])
+		self.assertEqual(self.workspace(page_length=100000)["page_length"], followups.PAGE_MAX)
+
+	def test_reschedule_moves_the_date_and_reopens_the_reminder(self):
+		name = self.mine["items"][0]["name"]
+		when = str(add_to_date(now_datetime(), days=9))
+		followups.reschedule_follow_up(name, when)
+		doc = frappe.get_doc("CRM Follow Up", name)
+		self.assertEqual(str(doc.next_follow_up_on)[:10], when[:10])
+		self.assertEqual((doc.next_closed, doc.reminded), (0, 0))
+		self.assertTrue(any("rescheduled" in c for c in self.comments_of(self.other_lead.name)))
+
+	def test_reschedule_rejects_done_and_past_dates(self):
+		name = self.mine["items"][0]["name"]
+		with self.assertRaises(frappe.ValidationError):
+			followups.reschedule_follow_up(name, "2000-01-01 10:00:00")
+		followups.complete_follow_up(name)
+		with self.assertRaises(frappe.ValidationError):
+			followups.reschedule_follow_up(name, str(add_to_date(now_datetime(), days=9)))
+
+	def test_a_sales_user_cannot_reschedule_somebody_elses_follow_up(self):
+		stranger = self.make_user("stranger.test@example.org", "Sales User")
+		frappe.set_user(stranger.name)
+		with self.assertRaises(frappe.PermissionError):
+			followups.reschedule_follow_up(self.mine["items"][0]["name"], str(add_to_date(now_datetime(), days=9)))
+
+	def test_bulk_done_and_reschedule_report_what_failed(self):
+		a, b = str(self.rows()[0].name), str(self.mine["items"][0]["name"])
+		res = followups.bulk_update(frappe.as_json([a, b, "999999"]), "done")
+		self.assertEqual(sorted(res["updated"]), sorted([a, b]))
+		self.assertEqual([f["name"] for f in res["failed"]], ["999999"])
+		self.assertEqual(self.workspace()["counts"]["overdue"] + self.workspace()["counts"]["upcoming"], 0)
+		res = followups.bulk_update([a], "reschedule", str(add_to_date(now_datetime(), days=4)))
+		self.assertEqual(res["updated"], [])  # already done
+		self.assertEqual(len(res["failed"]), 1)
+		with self.assertRaises(frappe.ValidationError):
+			followups.bulk_update([a], "delete")
+
+	def test_bulk_is_checked_per_follow_up_for_sales_users(self):
+		frappe.set_user(self.rep.name)
+		res = followups.bulk_update([str(self.rows()[0].name), str(self.mine["items"][0]["name"])], "done")
+		self.assertEqual(res["updated"], [str(self.mine["items"][0]["name"])])
+		self.assertEqual(len(res["failed"]), 1)
+
+	def test_get_queue_is_unchanged(self):
+		data = followups.get_queue("all")
+		self.assertEqual(data["counts"], {"overdue": 1, "today": 0, "upcoming": 1})
+
+	def comments_of(self, lead):
+		return [c.content for c in frappe.get_all("Comment", filters={"reference_doctype": "CRM Lead", "reference_name": lead}, fields=["content"])]
+
+
+class TestNurturing(FollowUpBase):
+	"""Lead Nurturing: campaign numbers for the Sales Dashboard, and whose campaigns each person sees."""
+
+	def setUp(self):
+		super().setUp()
+		# the numbers below assume email opens are not tracked; a site may have an outgoing account that tracks them
+		frappe.db.set_value("Email Account", {"track_email_status": 1}, "track_email_status", 0)
+		self.rep = self.owner
+		self.rival = self.make_user("rival.test@example.org", "Sales User")
+		self.today = str(now_datetime().date())
+		self.mine = self.campaign("Mine Camp", self.rep.name)
+		self.theirs = self.campaign("Theirs Camp", self.rival.name)
+		sent = now_datetime()
+		self.recipient(self.mine, "Email", "Sent", sent)
+		self.recipient(self.mine, "WhatsApp", "Read", sent, lead=self.lead)
+		self.recipient(self.mine, "WhatsApp", "Failed", None, failed_at=sent)
+		self.recipient(self.theirs, "WhatsApp", "Delivered", sent)
+		self.recipient(self.theirs, "Email", "Sent", sent)
+
+	def campaign(self, name, owner):
+		doc = frappe.get_doc(
+			{"doctype": "CRM Campaign", "campaign_name": name, "campaign_owner": owner, "status": "Completed", "audience_mode": "Selected Records", "selected_records": "[]"}
+		)
+		doc.flags.ignore_validate = True
+		doc.flags.ignore_mandatory = True
+		doc.insert(ignore_permissions=True)
+		frappe.db.set_value("CRM Campaign", doc.name, "owner", owner)
+		return doc.name
+
+	def recipient(self, campaign, channel, status, sent_at, lead=None, **kw):
+		lead = lead or frappe.get_doc(
+			{"doctype": "CRM Lead", "first_name": f"N{frappe.generate_hash(length=6)}", "last_name": "Nurture", "lead_owner": self.rep.name}
+		).insert(ignore_permissions=True)
+		doc = frappe.get_doc(
+			{
+				"doctype": "CRM Campaign Recipient", "campaign": campaign, "channel": channel, "status": status, "recipient_type": "CRM Lead",
+				"recipient_id": lead.name, "recipient_name": lead.lead_name, "sent_at": sent_at, "step_idx": 1,
+				"dedupe_key": frappe.generate_hash(length=20), **kw,
+			}
+		)
+		doc.flags.ignore_validate = True
+		doc.flags.ignore_mandatory = True
+		doc.insert(ignore_permissions=True)
+		return doc
+
+	def nurturing(self, **kw):
+		return dashboard.get_nurturing(self.today, self.today, **kw)
+
+	def test_manager_sees_every_campaign(self):
+		data = self.nurturing()
+		t = data["totals"]
+		self.assertEqual((t["campaigns"], t["sent"], t["failed"], t["reached"]), (2, 4, 1, 4))
+		self.assertEqual(data["channels"]["WhatsApp"]["sent"], 2)
+		self.assertEqual(data["channels"]["WhatsApp"]["delivered"], 2)  # Delivered and Read both count
+		self.assertEqual(data["channels"]["WhatsApp"]["read"], 1)
+		self.assertEqual(t["delivered_rate"], 100.0)
+		self.assertEqual(t["read_rate"], 50.0)  # email opens are not tracked on this site
+		self.assertEqual(sum(d["Email"] + d["WhatsApp"] for d in data["by_day"]), 4)
+		self.assertEqual({r["status"]: r["count"] for r in data["status_counts"]}, {"Completed": 2})
+		self.assertEqual({c["campaign_name"] for c in data["top_campaigns"]}, {"Mine Camp", "Theirs Camp"})
+		self.assertTrue(data["has_campaigns"])
+
+	def test_manager_can_look_at_one_person(self):
+		data = self.nurturing(user=self.rep.name)
+		self.assertEqual((data["totals"]["campaigns"], data["totals"]["sent"]), (1, 2))
+		self.assertEqual([c["campaign_name"] for c in data["top_campaigns"]], ["Mine Camp"])
+
+	def test_sales_user_only_sees_their_own_campaigns(self):
+		frappe.set_user(self.rep.name)
+		for asked in (None, "Administrator", self.rival.name, self.rep.name):
+			data = self.nurturing(user=asked)
+			self.assertFalse(data["scope"]["is_manager"])
+			self.assertEqual(data["scope"]["user"], self.rep.name)
+			self.assertEqual((data["totals"]["campaigns"], data["totals"]["sent"]), (1, 2))
+			self.assertEqual([c["campaign_name"] for c in data["top_campaigns"]], ["Mine Camp"])
+			self.assertNotIn("Theirs Camp", str(data))
+
+	def test_replies_and_opt_outs_are_counted(self):
+		frappe.get_doc(
+			{"doctype": "Communication", "communication_type": "Communication", "sent_or_received": "Received", "reference_doctype": "CRM Lead",
+			 "reference_name": self.lead.name, "subject": "Re: hi", "content": "Interested", "sender": "x@example.com", "creation": add_to_date(now_datetime(), minutes=5)}
+		).insert(ignore_permissions=True)
+		frappe.db.set_value("Communication", {"reference_name": self.lead.name}, "creation", add_to_date(now_datetime(), minutes=5))
+		data = self.nurturing()
+		self.assertEqual(data["totals"]["replied"], 1)
+		self.assertEqual(data["totals"]["reply_rate"], 25.0)
+		self.assertEqual({c["campaign_name"]: c["replied"] for c in data["top_campaigns"]}["Mine Camp"], 1)
+		frappe.get_doc({"doctype": "CRM Campaign Opt Out", "channel": "Email", "value": "stop.test@example.com", "source": "Manual", "lead": self.lead.name}).insert(ignore_permissions=True)
+		self.assertEqual(self.nurturing()["totals"]["optouts"], 1)
+		self.assertEqual(self.nurturing(user=self.rival.name)["totals"]["optouts"], 0)
+
+	def test_empty_period_is_all_zeros(self):
+		data = dashboard.get_nurturing("2001-01-01", "2001-01-03")
+		self.assertEqual(data["totals"]["sent"], 0)
+		self.assertEqual(len(data["by_day"]), 3)
+		self.assertIsNone(data["totals"]["delivered_rate"])
+		self.assertEqual(data["top_campaigns"], [])
+
+	def test_nurtured_leads_are_counted_against_open_leads(self):
+		data = self.nurturing(user=self.rep.name)
+		self.assertEqual(data["nurtured"]["nurtured"], 2)
+		self.assertGreaterEqual(data["nurtured"]["open_leads"], 2)
+
+
+class TestDateBoundaries(FollowUpBase):
+	"""Every report uses the same range: the days from the first to the last, both included, to the second.
+
+	Records sit at 00:00:00 and 23:59:59 of the first and last day and just outside them (23:59:59 the day
+	before, 00:00:00 the day after). The "previous period" is the same number of days that ends the day before.
+	"""
+
+	D = "2020-03-10"
+
+	campaign = TestNurturing.campaign
+	recipient = TestNurturing.recipient
+
+	def setUp(self):
+		super().setUp()
+		self.rep = self.owner
+
+	def test_sales_report_counts_calls_from_00_00_00_to_23_59_59(self):
+		for when in ("2020-03-09 23:59:59", "2020-03-10 00:00:00", "2020-03-10 23:59:59", "2020-03-11 00:00:00", "2020-03-08 12:00:00"):
+			self.log("Did Not Pick", followed_up_on=when)
+		one = reports.get_sales_report(self.D, self.D)
+		self.assertEqual(one["totals"]["calls"], 2)
+		self.assertEqual(sum(r["calls"] for r in one["daily"]), 2)
+		self.assertEqual(reports.get_sales_report("2020-03-09", self.D)["totals"]["calls"], 3)
+		self.assertEqual(reports.get_sales_report(self.D, "2020-03-11")["totals"]["calls"], 3)
+		# the previous period of one day is the day before; of two days (10 and 11) the 8th and the 9th
+		self.assertEqual(reports.get_sales_report("2020-03-11", "2020-03-11")["previous"]["calls"], 2)
+		self.assertEqual(reports.get_sales_report(self.D, "2020-03-11")["previous"]["calls"], 2)
+		# the Excel / CSV call log is the same set of calls
+		self.assertEqual(len(reports._call_log(self.D, self.D, None)), 2)
+		self.assertEqual(len(reports._call_log("2020-03-09", "2020-03-11", None)), 4)
+
+	def test_sales_report_counts_leads_created_on_the_boundary_days(self):
+		extra = [
+			frappe.get_doc({"doctype": "CRM Lead", "first_name": f"Edge{i}", "last_name": "Lead"}).insert(ignore_permissions=True)
+			for i in range(3)
+		]
+		for lead, created in zip([self.lead, *extra], ("2020-03-09 23:59:59", "2020-03-10 00:00:00", "2020-03-10 23:59:59", "2020-03-11 00:00:00")):
+			frappe.db.set_value("CRM Lead", lead.name, "creation", created, update_modified=False)
+		self.assertEqual(reports.get_sales_report(self.D, self.D)["totals"]["leads"], 2)
+		self.assertEqual(reports.get_sales_report("2020-03-11", "2020-03-11")["previous"]["leads"], 2)
+
+	def test_follow_up_page_window_includes_the_whole_last_day(self):
+		for when in ("2031-05-09 23:59:59", "2031-05-10 00:00:00", "2031-05-10 23:59:59", "2031-05-11 00:00:00"):
+			self.log("Did Not Pick", next_follow_up_on=when)
+		frappe.db.set_value("CRM Follow Up", {"reference_docname": self.lead.name}, "next_closed", 0)
+		one = followups.get_workspace(tab="upcoming", from_date="2031-05-10", to_date="2031-05-10")
+		self.assertEqual((one["total"], one["counts"]["upcoming"]), (2, 2))
+		self.assertEqual(followups.get_workspace(tab="upcoming", from_date="2031-05-10", to_date="2031-05-11")["total"], 3)
+		# reversed dates are put right, and a lone date is a one-day range
+		self.assertEqual(followups.get_workspace(tab="upcoming", from_date="2031-05-11", to_date="2031-05-10")["total"], 3)
+		self.assertEqual(followups.get_workspace(tab="upcoming", from_date="2031-05-10")["total"], 2)
+		self.assertEqual(one["window"], {"from": "2031-05-10", "to": "2031-05-10"})
+
+	def test_nurturing_counts_sends_from_00_00_00_to_23_59_59(self):
+		camp = self.campaign("Edge Camp", self.rep.name)
+		for when in ("2020-03-09 23:59:59", "2020-03-10 00:00:00", "2020-03-10 23:59:59", "2020-03-11 00:00:00", "2020-03-07 12:00:00"):
+			self.recipient(camp, "Email", "Sent", when)
+		one = dashboard.get_nurturing(self.D, self.D)
+		self.assertEqual(one["totals"]["sent"], 2)
+		self.assertEqual([(d["date"], d["Email"]) for d in one["by_day"]], [(self.D, 2)])
+		# 10th to 12th is three days: the previous period is the 7th to the 9th
+		three = dashboard.get_nurturing(self.D, "2020-03-12")
+		self.assertEqual(three["totals"]["sent"], 3)
+		self.assertEqual(three["previous"]["sent"], 2)
+		self.assertEqual(len(three["by_day"]), 3)
+		self.assertEqual(dashboard.get_nurturing("2020-03-11", "2020-03-11")["previous"]["sent"], 2)
+
+	def test_meeting_counts_and_the_previous_period_of_the_crm_dashboard_card(self):
+		fake = MeetingsTestCase_google()
+		p1, p2 = fake
+		with p1, p2, patch.object(frappe, "sendmail"):
+			for start, end in (
+				("2020-03-07 12:00:00", "2020-03-07 12:30:00"),
+				("2020-03-09 23:30:00", "2020-03-09 23:59:59"),
+				("2020-03-10 00:00:00", "2020-03-10 00:30:00"),
+				("2020-03-10 23:30:00", "2020-03-10 23:59:59"),
+				("2020-03-11 00:00:00", "2020-03-11 00:30:00"),
+			):
+				self.save(notify="none", add_video_conferencing=0, starts_on=start, ends_on=end)
+		self.assertEqual(dashboard._count(self.D, self.D, None), 2)
+		self.assertEqual(dashboard.get_meetings_in_period(self.D, self.D)["value"], 2)
+		card = dashboard.get_meetings_in_period(self.D, "2020-03-12")
+		# three days (10th to 12th): 3 meetings; the previous three days (7th to 9th): 2, so +50%
+		self.assertEqual(card["value"], 3)
+		self.assertEqual(round(card["delta"]), 50)
+
+	def test_the_previous_period_is_as_long_as_the_current_one(self):
+		# seven days, 10th to 16th: the calls of the 3rd to the 9th are the comparison
+		for when in ("2020-03-02 23:59:59", "2020-03-03 00:00:00", "2020-03-09 23:59:59", "2020-03-10 00:00:00"):
+			self.log("Interested", followed_up_on=when)
+		data = reports.get_sales_report(self.D, "2020-03-16")
+		self.assertEqual((data["totals"]["calls"], data["previous"]["calls"]), (1, 2))
+		card = dashboard.get_call_connect_rate(self.D, "2020-03-16", None)
+		self.assertEqual(card["value"], 100.0)
+		self.assertEqual(card["delta"], 0.0)
+
+
+def MeetingsTestCase_google():
+	return google_patch(FakeGoogle())

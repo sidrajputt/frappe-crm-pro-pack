@@ -1,0 +1,228 @@
+{
+ "actions": [],
+ "creation": "2026-10-08 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "modified": "2026-10-08 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Campaigns",
+ "owner": "Administrator",
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "autoname": "format:AUTO-{#####}",
+ "name": "CRM Campaign Automation",
+ "title_field": "automation_name",
+ "search_fields": "automation_name",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1
+  },
+  {
+   "role": "Sales Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1
+  },
+  {
+   "role": "Sales User",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1
+  }
+ ],
+ "field_order": [
+  "automation_name",
+  "enabled",
+  "automation_owner",
+  "description",
+  "trigger_section",
+  "trigger_event",
+  "trigger_status",
+  "trigger_campaign",
+  "conditions_section",
+  "audience_mode",
+  "saved_view",
+  "audience_filters",
+  "actions_section",
+  "actions",
+  "messages_section",
+  "steps",
+  "consent_confirmed",
+  "stop_on_reply",
+  "track_clicks",
+  "window_enabled",
+  "window_start",
+  "window_end",
+  "window_weekdays_only",
+  "timezone",
+  "campaign"
+ ],
+ "fields": [
+  {
+   "fieldname": "automation_name",
+   "fieldtype": "Data",
+   "label": "Name",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "On",
+   "default": "0",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "automation_owner",
+   "fieldtype": "Link",
+   "label": "Owner",
+   "options": "User"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "trigger_section",
+   "fieldtype": "Section Break",
+   "label": "When this happens"
+  },
+  {
+   "fieldname": "trigger_event",
+   "fieldtype": "Select",
+   "label": "Event",
+   "reqd": 1,
+   "options": "Lead created\nLead status changed\nLead replied\nLead clicked a link\nLead opened or read\nMessage failed or bounced\nLead opted out"
+  },
+  {
+   "fieldname": "trigger_status",
+   "fieldtype": "Link",
+   "label": "Status changed to",
+   "options": "CRM Lead Status",
+   "depends_on": "eval:doc.trigger_event=='Lead status changed'"
+  },
+  {
+   "fieldname": "trigger_campaign",
+   "fieldtype": "Link",
+   "label": "Only for messages of campaign",
+   "options": "CRM Campaign",
+   "description": "Leave empty for any campaign."
+  },
+  {
+   "fieldname": "conditions_section",
+   "fieldtype": "Section Break",
+   "label": "Only for leads that match"
+  },
+  {
+   "fieldname": "audience_mode",
+   "fieldtype": "Select",
+   "label": "Matching by",
+   "options": "CRM Filters\nSaved Segment",
+   "default": "CRM Filters"
+  },
+  {
+   "fieldname": "saved_view",
+   "fieldtype": "Link",
+   "label": "Saved segment",
+   "options": "CRM View Settings"
+  },
+  {
+   "fieldname": "audience_filters",
+   "fieldtype": "Code",
+   "label": "Filters",
+   "options": "JSON"
+  },
+  {
+   "fieldname": "actions_section",
+   "fieldtype": "Section Break",
+   "label": "Then do this"
+  },
+  {
+   "fieldname": "actions",
+   "fieldtype": "Table",
+   "label": "Actions",
+   "options": "CRM Automation Action"
+  },
+  {
+   "fieldname": "messages_section",
+   "fieldtype": "Section Break",
+   "label": "Messages (for the Send messages action)"
+  },
+  {
+   "fieldname": "steps",
+   "fieldtype": "Table",
+   "label": "Message steps",
+   "options": "CRM Campaign Step"
+  },
+  {
+   "fieldname": "consent_confirmed",
+   "fieldtype": "Check",
+   "label": "Leads agreed to receive WhatsApp messages"
+  },
+  {
+   "fieldname": "stop_on_reply",
+   "fieldtype": "Check",
+   "label": "Stop the sequence when the lead replies",
+   "default": "0"
+  },
+  {
+   "fieldname": "track_clicks",
+   "fieldtype": "Check",
+   "label": "Track link clicks in emails",
+   "default": "1"
+  },
+  {
+   "fieldname": "window_enabled",
+   "fieldtype": "Check",
+   "label": "Only send during these hours",
+   "default": "0"
+  },
+  {
+   "fieldname": "window_start",
+   "fieldtype": "Time",
+   "label": "From",
+   "default": "09:00:00"
+  },
+  {
+   "fieldname": "window_end",
+   "fieldtype": "Time",
+   "label": "Until",
+   "default": "18:00:00"
+  },
+  {
+   "fieldname": "window_weekdays_only",
+   "fieldtype": "Check",
+   "label": "Monday to Friday only",
+   "default": "0"
+  },
+  {
+   "fieldname": "timezone",
+   "fieldtype": "Data",
+   "label": "Time zone"
+  },
+  {
+   "fieldname": "campaign",
+   "fieldtype": "Link",
+   "label": "Message campaign (managed)",
+   "options": "CRM Campaign",
+   "read_only": 1,
+   "description": "Created and kept in step by the automation. Its results are in the Campaign Manager."
+  }
+ ]
+}

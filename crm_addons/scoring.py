@@ -8,6 +8,7 @@ row, a "not interested" outcome and silence push it down. The rules are the numb
 import frappe
 from frappe.utils import cint, date_diff, getdate, now_datetime
 
+from crm_addons import debuglog
 from crm_addons.utils import REFERENCE_DOCTYPES, get_settings
 
 FIELD = "addons_score"
@@ -81,6 +82,7 @@ def refresh_score(reference_doctype, reference_docname):
 	frappe.db.set_value(reference_doctype, reference_docname, FIELD, compute(reference_doctype, reference_docname), update_modified=False)
 
 
+@debuglog.traced("scoring.refresh_all")
 def refresh_all():
 	"""Daily: scores drift as things get older, so recompute every record that has any activity."""
 	if not cint(get_settings().lead_scoring_enabled):

@@ -1,0 +1,99 @@
+{
+ "actions": [],
+ "creation": "2026-10-06 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "channel",
+  "value",
+  "source",
+  "reason",
+  "lead",
+  "opt_key"
+ ],
+ "fields": [
+  {
+   "fieldname": "channel",
+   "fieldtype": "Select",
+   "label": "Channel",
+   "options": "Email\nWhatsApp",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "value",
+   "fieldtype": "Data",
+   "label": "Value",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "Email address or phone number (digits)."
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "label": "Source",
+   "options": "Manual\nUnsubscribe Link\nWhatsApp Reply\nImport\nBounce\nInvalid Number",
+   "default": "Manual",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "label": "Reason"
+  },
+  {
+   "fieldname": "lead",
+   "fieldtype": "Link",
+   "label": "Lead",
+   "options": "CRM Lead"
+  },
+  {
+   "fieldname": "opt_key",
+   "fieldtype": "Data",
+   "label": "Opt Key",
+   "unique": 1,
+   "read_only": 1,
+   "hidden": 1,
+   "length": 200
+  }
+ ],
+ "modified": "2026-10-06 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Campaigns",
+ "name": "CRM Campaign Opt Out",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1
+  },
+  {
+   "role": "Sales Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1
+  },
+  {
+   "role": "Sales User",
+   "read": 1,
+   "create": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "autoname": "hash",
+ "search_fields": "value"
+}

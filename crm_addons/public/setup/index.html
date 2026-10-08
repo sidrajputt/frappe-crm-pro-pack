@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Pro Pack Setup</title>
+</head>
+<body>
+	<div id="app"></div>
+	<noscript>This page needs JavaScript.</noscript>
+	<script>
+		// Same version for every file (set by whoever opened the page), so a new release never mixes old and new scripts.
+		(function () {
+			var v = new URLSearchParams(location.search).get('v') || Date.now()
+			document.write('<script src="../debug.js?v=' + v + '"><\/script>')
+			document.write('<link rel="stylesheet" href="setup.css?v=' + v + '">')
+			document.write('<script src="../meetings/vendor/vue.global.prod.js?v=' + v + '"><\/script>')
+			document.write('<script src="schema.js?v=' + v + '"><\/script>')
+			document.write('<script src="setup.js?v=' + v + '"><\/script>')
+		})()
+	</script>
+</body>
+</html>

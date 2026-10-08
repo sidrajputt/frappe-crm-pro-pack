@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Campaign Manager</title>
+	<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%221%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%234f8cf7%22/%3E%3Cstop offset=%221%22 stop-color=%22%232563eb%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22url%28%23g%29%22/%3E%3Cg transform=%22translate%286.4 6.4%29 scale%28.8%29%22 fill=%22none%22 stroke=%22%23fff%22 stroke-width=%222.1%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.5.5 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z%22/%3E%3Cpath d=%22m21.854 2.147-10.94 10.939%22/%3E%3C/g%3E%3C/svg%3E" />
+	<meta name="color-scheme" content="light dark" />
+</head>
+<body>
+	<script>
+		// Safety net: if the app cannot start (a script that failed to load, or an error while starting) the
+		// page must say so, with the exact reason, instead of staying blank.
+		(function () {
+			var problems = []
+			function note(t) { if (problems.indexOf(t) < 0 && problems.length < 12) problems.push(t) }
+			window.addEventListener('error', function (e) {
+				var t = e.target
+				if (t && t !== window && (t.src || t.href)) note('Could not load ' + (t.src || t.href))
+				else note((e.message || 'Error') + (e.filename ? ' (' + e.filename.split('/').slice(-2).join('/') + ':' + e.lineno + ')' : ''))
+			}, true)
+			window.addEventListener('unhandledrejection', function (e) { note('Unhandled: ' + ((e.reason && e.reason.message) || e.reason)) })
+			window.__cmProblems = problems
+			function show() {
+				if (document.querySelector('.app')) return
+				var box = document.createElement('div')
+				box.setAttribute('role', 'alert')
+				box.style.cssText = 'max-width:640px;margin:12vh auto;padding:20px 24px;font:14px/1.5 system-ui,sans-serif;border:1px solid #d4d4d4;border-radius:12px;background:#fff;color:#171717'
+				var h = document.createElement('b'); h.textContent = 'The Campaign Manager could not start.'; h.style.fontSize = '16px'
+				var p = document.createElement('p'); p.textContent = problems.length ? 'Details (please send this to support):' : 'No error was reported. Try a hard refresh (Cmd/Ctrl + Shift + R). If it stays blank, open the browser console and send what it shows.'
+				var pre = document.createElement('pre'); pre.style.cssText = 'white-space:pre-wrap;font-size:12px;background:#f5f5f5;padding:10px;border-radius:8px;margin:8px 0'; pre.textContent = problems.join('\n') + '\n' + location.href
+				var b = document.createElement('button'); b.textContent = 'Reload'; b.style.cssText = 'padding:6px 14px;border-radius:8px;border:1px solid #171717;background:#171717;color:#fff;cursor:pointer'; b.onclick = function () { location.reload() }
+				box.appendChild(h); box.appendChild(p); box.appendChild(pre); box.appendChild(b)
+				document.body.appendChild(box)
+			}
+			window.addEventListener('load', function () { setTimeout(show, 1500) })
+		})()
+	</script>
+	<div id="app"></div>
+	<noscript>This page needs JavaScript.</noscript>
+	<script>
+		// One ?v= for every file (set by bridge.js), so a new release never mixes old and new scripts.
+		(function () {
+			var v = new URLSearchParams(location.search).get('v') || Date.now()
+			var css = ['campaigns.css', 'views.css']
+			var js = ['../debug.js', '../meetings/vendor/vue.global.prod.js', 'js/core.js', 'js/ui.js', 'js/daterange.js', 'js/email-blocks.js', 'js/email-editors.js', 'js/email-views.js', 'js/audience.js', 'js/whatsapp.js', 'js/calendar.js', 'js/list.js', 'js/hygiene.js', 'js/detail.js', 'js/wizard-steps.js', 'js/wizard.js', 'js/automation.js', 'js/app.js']
+			css.forEach(function (f) { document.write('<link rel="stylesheet" href="' + f + '?v=' + v + '">') })
+			js.forEach(function (f) { document.write('<script src="' + f + '?v=' + v + '"><\/script>') })
+		})()
+	</script>
+</body>
+</html>

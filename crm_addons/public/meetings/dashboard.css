@@ -23,7 +23,7 @@ body { background: var(--dash-bg); }
 .pick-opt small { display: block; margin-top: 1px; color: var(--text-faint); font-size: 12px; white-space: normal; }
 
 /* date range popover */
-.pick-pop.range-pop { display: flex; padding: 0; max-width: calc(100vw - 16px); overflow: visible; }
+.pick-pop.range-pop { display: flex; padding: 0; max-width: calc(100vw - 16px); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
 .range-pop .presets { display: flex; flex-direction: column; gap: 2px; width: 160px; padding: 10px; border-right: 1px solid var(--dash-line); }
 .range-pop .presets .pick-opt { height: 32px; }
 .range-pop .cal { width: 340px; padding: 12px 14px 14px; }
@@ -143,3 +143,34 @@ td.late { color: var(--red); font-weight: 600; }
 .chip.t-blue { background: var(--accent-soft); color: var(--accent-text); }
 
 @media print { .dash-bar { position: static; } .progress { display: none; } body { background: #fff; } }
+
+/* Lead Nurturing (campaigns) */
+.dash-tabs { margin-right: 4px; }
+.kpi.green { border-top: 3px solid #16a34a; }
+.delta.down.bad, .delta.up.bad { color: var(--red); background: var(--red-soft); }
+.nur-empty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 56px 24px 60px; }
+.nur-empty .big { display: inline-grid; place-items: center; width: 60px; height: 60px; border-radius: 18px; background: var(--accent-soft); color: var(--accent-text); margin-bottom: 14px; }
+.nur-empty .big .ico { width: 28px; height: 28px; }
+.nur-empty h3 { font-size: 18px; margin-bottom: 6px; }
+.nur-empty p { max-width: 520px; margin: 0 0 18px; color: var(--text-soft); }
+.nur-note a { color: inherit; font-weight: 600; text-decoration: underline; }
+.nur-foot { margin-top: 12px; }
+.nur-chan td .mini { display: block; width: 90px; margin: 4px 0 0 auto; }
+.camp-link { font-weight: 600; color: var(--text); }
+.camp-link:hover { color: var(--accent); }
+.nur-top td.l .sub { margin-top: 1px; }
+@media (max-width: 860px) { .dash-tabs { order: 5; } }
+.nur-kpis { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+
+/* date picker: keyboard focus, the note under the calendar */
+.cal-grid .day:focus-visible, .range-pop .presets .pick-opt:focus-visible { outline: 2px solid var(--ring, var(--accent)); outline-offset: -2px; border-radius: 8px; }
+.range-pop .cal-note { margin-top: 10px; font-size: 12px; line-height: 1.4; color: var(--text-faint); white-space: normal; }
+@media (max-width: 640px) { .range-pop .cal { width: auto; max-width: 100%; } }
+/* in a pop-up (about 1200px) the bar has no room for the "Updated" text: it is in the Refresh button's tooltip instead */
+@media (max-width: 1360px) { .dash-bar .updated { display: none; } }
+.cal-foot .control { font-size: 12px; padding: 0 4px; }
+.cal-foot .control::-webkit-calendar-picker-indicator { margin: 0 0 0 2px; padding: 0; }
+.range-pop .cal { width: 360px; }
+@media (max-width: 640px) { .range-pop .cal { width: auto; max-width: 100%; } }
+/* the pop-up is about 1200px wide: keep the bar on one line (Close next to Open in a new tab) */
+@media (max-width: 1280px) { .dash-bar .user-pick { width: 170px; } .dash-bar .pick-btn.range { min-width: 250px; } .dash-brand { margin-right: 0; } .dash-bar { gap: 8px; } }

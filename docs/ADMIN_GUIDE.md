@@ -140,15 +140,42 @@ Follow-ups tabs to Lead pages** can be switched off if you do not want them. **S
 ## Sales Dashboard
 
 Open it with **Dashboard** on the Leads list (header), the Leads Kanban view (floating button) or
-CRM's own Dashboard page. It opens full screen in a new tab. You can also go straight to
-`/sales-dashboard`.
+CRM's own Dashboard page. It opens as a large pop-up over the CRM (like the Meetings calendar); the
+**Open in a new tab** button next to Close opens the same tab, date range and person full screen, and
+`/sales-dashboard` goes there directly. Esc or a click outside closes the pop-up (Esc first closes an open
+dropdown or the date picker). Lead and meeting links move the CRM tab behind the pop-up.
 
 - **Export** (top right) downloads an Excel workbook with a sheet for each section and the full call
   log, or the call log alone as CSV. Sales users can only export their own numbers.
-- The date range dropdown remembers your last choice. The theme toggle (light by default) is
-  remembered per browser.
+- The date range picker remembers your last choice per page (per browser). A range is the days from the first
+  to the last, both included; the cards, charts, the Excel / CSV export and the comparison with the previous
+  period (the same number of days right before) all use that same range. Hover the picker for the dates being
+  compared. The dashboard follows CRM's light or dark theme and has no toggle of its own.
 - "Stale leads" uses the **Alert the owner after this many days without activity** setting; with it
   at `0` the card says the alerts are off.
+- **Lead Nurturing** is a second tab next to **Sales** (`/sales-dashboard#nurturing` opens it). It shows only
+  when **Enable Campaign Manager** is on and loads its numbers when you open it, for the date range and person
+  picked at the top. A campaign counts when it was created, started or sent something in the range. "Replied"
+  means the lead wrote back (a WhatsApp message or an email) within 14 days after a send. Delivery is reported by
+  WhatsApp only, and email opens only when open tracking is on for the outgoing Email Account, so those cards
+  say so instead of guessing. Managers see every campaign; a sales user only the campaigns they own or run.
+
+## Follow-ups page
+
+Open it from **Follow-ups** (Leads list, Kanban view, Dashboard header or the side menu) or go to `/followups`;
+it opens as a large pop-up over the CRM (**Open in a new tab** for the full page, keeping your filters) and follows CRM's light or dark theme. Deep links: `/followups#today`,
+`#overdue`, `#upcoming`, `#done`.
+
+- **Who sees what:** managers see everyone's follow-ups by default and can pick one owner or switch to
+  *My follow-ups*; a sales user only sees follow-ups assigned to them, whatever the address asks for.
+- **Tabs and cards:** Overdue, Due today and Upcoming are open follow-ups; Done lists the ones that were
+  completed or followed up by a newer call (the last 30 days unless a date range is set). The cards are
+  clickable shortcuts to the tabs. Connect rate covers the calls made in the same window.
+- **Filters:** search (lead name, phone, email, organisation or remark), owner, call outcome and due-date range.
+- **Row actions:** *Log* opens the usual Add follow-up form; the tick marks it done; the clock moves it to
+  another time (quick picks or a date and time); the arrow opens the lead. Select rows to mark many done or
+  move them together; each one is checked against your permission on its own.
+- *List* shows one table; *By day* groups the same rows under their due day.
 
 - Who sees what is decided by role: **Sales Manager**, **System Manager** and **Administrator** see the
   whole team; everybody else with the **Sales User** role sees only their own numbers, even if they
@@ -166,8 +193,9 @@ Under **CRM Interface** in CRM Addons Settings:
 - **Hide "Deals" from the CRM side menu** hides the Deals entry and any saved Deals views listed
   under it.
 - **Hide the "Convert to Deal" button on the Lead page** hides that button.
+- **Hide "Notes" / "Tasks" / "Call Logs" from the CRM side menu** work the same way as the Deals switch (entry and its saved views are hidden on screen; the pages stay reachable).
 
-Both only hide things on the screen, and both are on by default. They do not stop someone who opens
+These only hide things on the screen (they are off by default). They do not stop someone who opens
 `/crm/deals` directly or calls the API; use Frappe's role permissions on **CRM Deal** for that. The
 button is found by its label, so check it after a CRM update. Reload the CRM page after changing a
 switch.

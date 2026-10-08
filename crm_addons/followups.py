@@ -9,7 +9,7 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, cint, escape_html, get_datetime, getdate, now_datetime, nowdate
 
-from crm_addons import notifications, scoring
+from crm_addons import debuglog, notifications, scoring
 from crm_addons.api import _check_reference
 from crm_addons.utils import (
 	REFERENCE_DOCTYPES,
@@ -103,7 +103,7 @@ def refresh_next_follow_up(reference_doctype, reference_docname):
 	values = {"next_follow_up_on": nxt}
 	values[F_LAST_OUTCOME] = last.outcome if last else None
 	values[F_LAST_REMARK] = ((last.remark or "")[:140] or None) if last else None
-	values[F_ATTEMPT] = last.attempt_no if last else None
+	values[F_ATTEMPT] = (last.attempt_no or 0) if last else 0  # an Int column: it cannot be NULL
 	values = {k: v for k, v in values.items() if meta.has_field(k)}
 	frappe.db.set_value(reference_doctype, reference_docname, values, update_modified=False)
 	scoring.refresh_score(reference_doctype, reference_docname)
@@ -194,6 +194,7 @@ def escalate_if_needed(doc):
 			frappe.log_error(title="CRM Add-ons: could not update the lead status", message=frappe.get_traceback())
 
 
+@debuglog.traced("followups.send_due_reminders")
 def send_due_reminders():
 	"""Every 5 minutes: tell the owner about follow-ups that have come due."""
 	settings = get_settings()
@@ -457,6 +458,248 @@ def get_queue(scope="mine", reference_doctype=None):
 		item["bucket"] = bucket
 		counts[bucket] += 1
 	return {"items": items, "counts": counts}
+
+
+# -- the Follow-ups workspace ---------------------------------------------------------------------------------
+
+TABS = ("overdue", "today", "upcoming", "done")
+PAGE_MAX = 200
+DEFAULT_WINDOW_DAYS = 30
+
+
+def _day_start(value):
+	return get_datetime(getdate(value))
+
+
+def _workspace_filters(scope, owner, reference_doctype, search, outcome):
+	"""Filters shared by every number on the page. Managers pick the scope and one owner; everyone
+	else only ever gets the follow-ups assigned to them (the permission query still applies on top)."""
+	filters = [["next_follow_up_on", "is", "set"]]
+	manager = is_manager()
+	if manager and scope == "all":
+		if owner:
+			filters.append(["assigned_to", "=", owner])
+	else:
+		filters.append(["assigned_to", "=", frappe.session.user])
+	if reference_doctype in REFERENCE_DOCTYPES:
+		filters.append(["reference_doctype", "=", reference_doctype])
+	if outcome:
+		filters.append(["outcome", "=", outcome])
+	or_filters = []
+	search = (search or "").strip()
+	if search:
+		like = f"%{search}%"
+		leads = frappe.get_all(
+			"CRM Lead",
+			or_filters=[
+				["lead_name", "like", like], ["first_name", "like", like], ["last_name", "like", like],
+				["mobile_no", "like", like], ["phone", "like", like], ["email", "like", like], ["organization", "like", like],
+				["name", "like", like],
+			],
+			pluck="name",
+			limit_page_length=500,
+		)
+		or_filters.append(["remark", "like", like])
+		if leads:
+			or_filters.append(["reference_docname", "in", leads])
+	return filters, or_filters
+
+
+def _count(filters, or_filters):
+	rows = frappe.get_list(DOCTYPE, filters=filters, or_filters=or_filters or None, fields=["count(name) as n"])
+	return cint(rows[0]["n"]) if rows else 0
+
+
+def _bucket_filters(bucket, window):
+	"""Filters for one tab, on top of the shared ones. ``window`` is the (from, to) due-date range, or None."""
+	now = now_datetime()
+	tomorrow = _day_start(add_days(getdate(nowdate()), 1))
+	out = []
+	if bucket == "done":
+		out.append(["next_closed", "=", 1])
+	else:
+		out.append(["next_closed", "=", 0])
+		if bucket == "overdue":
+			out.append(["next_follow_up_on", "<", now])
+		elif bucket == "today":
+			out += [["next_follow_up_on", ">=", now], ["next_follow_up_on", "<", tomorrow]]
+		else:
+			out.append(["next_follow_up_on", ">=", tomorrow])
+	if window:
+		out += [["next_follow_up_on", ">=", window[0]], ["next_follow_up_on", "<", window[1]]]
+	return out
+
+
+@frappe.whitelist()
+def get_workspace(
+	tab="overdue", scope=None, owner=None, search=None, outcome=None, from_date=None, to_date=None,
+	reference_doctype=None, page=1, page_length=50,
+):
+	"""Everything the Follow-ups page draws: the rows of one tab, the numbers for every tab, and the filters on offer.
+
+	Managers default to everyone (``scope="all"``) and can pick one owner; sales users only ever get
+	their own follow-ups, whatever is asked. ``from_date`` / ``to_date`` limit the due date. Without them
+	the open tabs are not limited and "Done" looks at the last 30 days. Overdue, today and upcoming are
+	open follow-ups; done ones are those that were completed or followed by a newer follow-up.
+	"""
+	manager = is_manager()
+	scope = scope or ("all" if manager else "mine")
+	tab = tab if tab in TABS else "overdue"
+	page, page_length = max(cint(page), 1), min(max(cint(page_length), 1), PAGE_MAX)
+	shared, any_of = _workspace_filters(scope, owner, reference_doctype, search, outcome)
+
+	window = None
+	if from_date or to_date:
+		start = getdate(from_date or to_date)
+		end = getdate(to_date or from_date)
+		if end < start:
+			start, end = end, start
+		window = (_day_start(start), _day_start(add_days(end, 1)))
+	done_window = window or (
+		_day_start(add_days(getdate(nowdate()), -DEFAULT_WINDOW_DAYS + 1)),
+		_day_start(add_days(getdate(nowdate()), 1)),
+	)
+
+	def win(bucket):
+		return done_window if bucket == "done" else window
+
+	counts = {b: _count(shared + _bucket_filters(b, win(b)), any_of) for b in TABS}
+
+	rows = frappe.get_list(
+		DOCTYPE,
+		filters=shared + _bucket_filters(tab, win(tab)),
+		or_filters=any_of or None,
+		fields=FIELDS,
+		order_by="next_follow_up_on desc, name desc" if tab == "done" else "next_follow_up_on asc, name asc",
+		limit_start=(page - 1) * page_length,
+		limit_page_length=page_length,
+	)
+	items = _decorate(rows)
+	_add_lead_details(items, tab)
+
+	# Calls that connected, of the calls made in the same window (the shared filters, minus the next-follow-up ones)
+	call_filters = [f for f in shared if f[0] not in ("next_follow_up_on", "outcome")] + [
+		["mode", "=", "Call"], ["followed_up_on", ">=", done_window[0]], ["followed_up_on", "<", done_window[1]],
+	]
+	calls = _count(call_filters, None)
+	connected = _count(call_filters + [["call_status", "=", CONNECTED]], None)
+
+	owners = []
+	if manager and scope == "all":
+		base = [f for f in shared if not (f[0] == "assigned_to")]
+		for row in frappe.get_list(
+			DOCTYPE, filters=base + [["next_closed", "=", 0]], or_filters=any_of or None,
+			fields=["assigned_to", "count(name) as n"], group_by="assigned_to", order_by="n desc",
+		):
+			if row.assigned_to:
+				owners.append({"name": row.assigned_to, "full_name": user_details(row.assigned_to)[1] or row.assigned_to, "open": cint(row.n)})
+		owners.sort(key=lambda o: (-o["open"], o["full_name"].lower()))
+
+	return {
+		"items": items,
+		"tab": tab,
+		"page": page,
+		"page_length": page_length,
+		"total": counts[tab],
+		"counts": counts,
+		"connect": {"calls": calls, "connected": connected, "rate": round(connected / calls * 100, 1) if calls else None},
+		"window": {"from": str(window[0].date()) if window else None, "to": str(add_days(window[1], -1).date()) if window else None},
+		"done_window": {"from": str(done_window[0].date()), "to": str(add_days(done_window[1], -1).date()), "default": not window},
+		"scope": {"value": "all" if manager and scope == "all" else "mine", "is_manager": manager, "user": frappe.session.user, "owner": owner if manager and scope == "all" else None},
+		"owners": owners,
+		"outcomes": [o for o in (frappe.get_meta(DOCTYPE).get_field("outcome").options or "").split("\n") if o],
+		"enabled": _enabled(),
+		"server_now": _dt(now_datetime()),
+	}
+
+
+def _add_lead_details(items, tab):
+	"""Phone, status and the lead's latest call outcome, and the bucket each open row falls in."""
+	names = list({i["reference_docname"] for i in items if i["reference_doctype"] == "CRM Lead"})
+	leads = {}
+	if names:
+		leads = {
+			r.name: r
+			for r in frappe.get_all(
+				"CRM Lead", filters={"name": ["in", names]}, fields=["name", "mobile_no", "phone", "email", "status", "organization", "lead_owner"]
+			)
+		}
+	colors = {s.name: s.color for s in frappe.get_all("CRM Lead Status", fields=["name", "color"])}
+	now = now_datetime()
+	tomorrow = _day_start(add_days(getdate(nowdate()), 1))
+	for item in items:
+		lead = leads.get(item["reference_docname"])
+		item["phone"] = (lead.mobile_no or lead.phone or "").strip() if lead else ""
+		item["email"] = (lead.email or "") if lead else ""
+		item["organization"] = (lead.organization or "") if lead else ""
+		item["lead_status"] = lead.status if lead else None
+		item["lead_status_color"] = colors.get(lead.status) if lead else None
+		due = get_datetime(item["next_follow_up_on"])
+		item["bucket"] = "done" if item["next_closed"] else "overdue" if due < now else "today" if due < tomorrow else "upcoming"
+
+
+def _bulk_names(names):
+	names = frappe.parse_json(names) if isinstance(names, str) else (names or [])
+	names = [n for n in dict.fromkeys(str(n) for n in names) if n]
+	if not names:
+		frappe.throw(_("Pick at least one follow-up."))
+	if len(names) > PAGE_MAX:
+		frappe.throw(_("Pick at most {0} follow-ups at a time.").format(PAGE_MAX))
+	return names
+
+
+def _reschedule(doc, when):
+	if doc.next_closed:
+		frappe.throw(_("This follow-up is already done."))
+	when = get_datetime(when)
+	if when < get_datetime(doc.followed_up_on):
+		frappe.throw(_("The next follow-up cannot be before this one."))
+	doc.next_follow_up_on = when
+	doc.save()
+	_post_comment(
+		doc.reference_doctype,
+		doc.reference_docname,
+		"\U0001f4de <b>{0}</b>: {1}".format(
+			escape_html(_("Follow-up rescheduled")), escape_html(when.strftime("%a, %d %b %Y, %I:%M %p"))
+		),
+	)
+
+
+@frappe.whitelist()
+def reschedule_follow_up(name, next_follow_up_on):
+	"""Move an open follow-up to another date and time (and remind about it again)."""
+	if not next_follow_up_on:
+		frappe.throw(_("Pick the new date and time."))
+	doc = _get(name, "write")
+	_reschedule(doc, next_follow_up_on)
+	return {"name": doc.name, "next_follow_up_on": _dt(doc.next_follow_up_on)}
+
+
+@frappe.whitelist()
+def bulk_update(names, action, next_follow_up_on=None):
+	"""Mark several follow-ups done, or move them to another time. Each one is checked on its own
+	(the same permission as doing it one by one), so one that is not allowed or is already done does not
+	stop the rest."""
+	if action not in ("done", "reschedule"):
+		frappe.throw(_("Unknown action: {0}").format(action))
+	if action == "reschedule" and not next_follow_up_on:
+		frappe.throw(_("Pick the new date and time."))
+	updated, failed = [], []
+	for name in _bulk_names(names):
+		frappe.db.savepoint("bulk_follow_up")
+		try:
+			doc = _get(name, "write")
+			if action == "done":
+				if not doc.next_closed:
+					doc.db_set("next_closed", 1)
+					refresh_next_follow_up(doc.reference_doctype, doc.reference_docname)
+			else:
+				_reschedule(doc, next_follow_up_on)
+			updated.append(name)
+		except Exception as e:
+			frappe.db.rollback(save_point="bulk_follow_up")
+			failed.append({"name": name, "error": str(e)})
+	return {"updated": updated, "failed": failed}
 
 
 # -- WhatsApp after a missed call ------------------------------------------------------------------------------

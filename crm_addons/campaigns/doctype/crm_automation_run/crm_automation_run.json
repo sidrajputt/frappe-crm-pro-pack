@@ -1,0 +1,67 @@
+{
+ "actions": [],
+ "creation": "2026-10-08 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "modified": "2026-10-08 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Campaigns",
+ "owner": "Administrator",
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "autoname": "hash",
+ "name": "CRM Automation Run",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1
+  }
+ ],
+ "field_order": [
+  "automation",
+  "lead",
+  "event",
+  "run_key"
+ ],
+ "fields": [
+  {
+   "fieldname": "automation",
+   "fieldtype": "Link",
+   "label": "Automation",
+   "options": "CRM Campaign Automation",
+   "reqd": 1,
+   "search_index": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "lead",
+   "fieldtype": "Link",
+   "label": "Lead",
+   "options": "CRM Lead",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "event",
+   "fieldtype": "Data",
+   "label": "Event",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "run_key",
+   "fieldtype": "Data",
+   "label": "Run key",
+   "unique": 1,
+   "read_only": 1,
+   "hidden": 1,
+   "length": 200
+  }
+ ]
+}

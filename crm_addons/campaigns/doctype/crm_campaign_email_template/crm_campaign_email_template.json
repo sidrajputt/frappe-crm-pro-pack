@@ -1,0 +1,126 @@
+{
+ "actions": [],
+ "creation": "2026-10-06 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "template_name",
+  "enabled",
+  "category",
+  "editor_mode",
+  "subject",
+  "body_html",
+  "body_text",
+  "variables",
+  "description",
+  "builder_json"
+ ],
+ "fields": [
+  {
+   "fieldname": "template_name",
+   "fieldtype": "Data",
+   "label": "Template Name",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled",
+   "default": "1",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "subject",
+   "fieldtype": "Data",
+   "label": "Subject",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "Variables such as {{ first_name }} are allowed."
+  },
+  {
+   "fieldname": "body_html",
+   "fieldtype": "Text Editor",
+   "label": "HTML Body",
+   "reqd": 1
+  },
+  {
+   "fieldname": "body_text",
+   "fieldtype": "Small Text",
+   "label": "Plain Text Body",
+   "description": "Optional. Used for the preview text. Frappe builds the plain-text part of the sent email from the HTML body."
+  },
+  {
+   "fieldname": "variables",
+   "fieldtype": "Small Text",
+   "label": "Variables",
+   "read_only": 1,
+   "description": "Variables found in the template (filled on save)."
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Select",
+   "label": "Category",
+   "options": "\nWelcome\nPromotion\nNewsletter\nFollow-up\nEvent\nAnnouncement\nTransactional\nOther",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "editor_mode",
+   "fieldtype": "Select",
+   "label": "Editor",
+   "options": "\nVisual Builder\nHTML\nRich Text",
+   "description": "How the template was created in the Campaign Manager. The HTML body is always what is sent."
+  },
+  {
+   "fieldname": "builder_json",
+   "fieldtype": "Code",
+   "options": "JSON",
+   "label": "Visual Builder Blocks",
+   "hidden": 1,
+   "description": "Block definition of the visual builder. Not used when sending."
+  }
+ ],
+ "modified": "2026-10-06 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Campaigns",
+ "name": "CRM Campaign Email Template",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1
+  },
+  {
+   "role": "Sales Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1
+  },
+  {
+   "role": "Sales User",
+   "read": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "autoname": "field:template_name",
+ "track_changes": 1
+}

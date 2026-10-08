@@ -25,6 +25,7 @@
 		'phone-call':
 			'<path d="M15.05 5A5 5 0 0 1 19 8.95M15.05 1A9 9 0 0 1 23 8.94"/><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>',
 		chart: '<path d="M3 3v18h18"/><path d="M8 17v-6M13 17V7M18 17v-3"/>',
+		send: '<path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/>',
 		plus: '<path d="M12 5v14M5 12h14"/>',
 		x: '<path d="M18 6 6 18M6 6l12 12"/>',
 		check: '<path d="M20 6 9 17l-5-5"/>',
@@ -33,6 +34,9 @@
 		users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
 		edit: '<path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/>',
 		trash: '<path d="M3 6h18M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>',
+		funnel: '<path d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"/>',
+		'chart-column': '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9M13 17V5M8 17v-3"/>',
+		ellipsis: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
 		alert: '<path d="m10.29 3.86-8.18 14.14A2 2 0 0 0 3.82 21h16.36a2 2 0 0 0 1.71-3l-8.18-14.14a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>',
 	}
 
@@ -107,13 +111,28 @@
 	}
 
 	// ---- server calls ---------------------------------------------------------------------------------
+	/** fetch() that gives up after 25 seconds, so a request that never answers cannot leave a button or a
+	 * panel waiting for ever. */
+	function timedFetch(url, init) {
+		init = init || {}
+		if (typeof AbortController !== 'function') return fetch(url, init)
+		var ctl = new AbortController()
+		var timer = setTimeout(function () { ctl.abort() }, 25000)
+		init.signal = ctl.signal
+		return fetch(url, init).then(
+			function (r) { clearTimeout(timer); return r },
+			function (e) { clearTimeout(timer); throw e }
+		)
+	}
+
 	var csrfPromise = null
 	function csrf() {
 		if (window.csrf_token && String(window.csrf_token).indexOf('{{') < 0) return Promise.resolve(window.csrf_token)
 		if (!csrfPromise) {
-			csrfPromise = fetch(API + 'api.get_csrf_token', { credentials: 'same-origin' })
+			csrfPromise = timedFetch(API + 'api.get_csrf_token', { credentials: 'same-origin' })
 				.then(function (r) { return r.json() })
 				.then(function (j) { return j.message })
+				.catch(function (e) { csrfPromise = null; throw e }) // a failed attempt must not be remembered for ever
 		}
 		return csrfPromise
 	}
@@ -130,7 +149,7 @@
 	function call(method, args) {
 		return csrf()
 			.then(function (token) {
-				return fetch(API + method, {
+				return timedFetch(API + method, {
 					method: 'POST',
 					credentials: 'same-origin',
 					headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-Frappe-CSRF-Token': token },
@@ -164,15 +183,24 @@
 		return configPromise
 	}
 
+	var bridgeLoading = null
 	function bridge() {
-		return new Promise(function (resolve, reject) {
-			if (window.crmAddons) return resolve(window.crmAddons)
+		if (window.crmAddons) return Promise.resolve(window.crmAddons)
+		if (bridgeLoading) return bridgeLoading
+		bridgeLoading = new Promise(function (resolve, reject) {
 			var s = document.createElement('script')
+			var failed = function () {
+				bridgeLoading = null // the next click tries again
+				s.remove()
+				reject(new Error('The meetings screen could not be loaded.'))
+			}
+			var limit = setTimeout(failed, 15000)
 			s.src = '/assets/crm_addons/bridge.js?v=' + VER
-			s.onload = function () { resolve(window.crmAddons) }
-			s.onerror = function () { reject(new Error('The meetings screen could not be loaded.')) }
+			s.onload = function () { clearTimeout(limit); bridgeLoading = null; resolve(window.crmAddons) }
+			s.onerror = function () { clearTimeout(limit); failed() }
 			document.head.appendChild(s)
 		})
+		return bridgeLoading
 	}
 
 	// ---- toast + modal ----------------------------------------------------------------------------------
@@ -324,6 +352,45 @@
 					error.hidden = false
 				})
 		})
+	}
+
+	// ---- campaign activity (a tab on the Lead page) ---------------------------------------------------
+	function renderCampaigns(panel, r) {
+		clear(panel)
+		panel.appendChild(h('div', { class: 'cra-empty', text: 'Loading...' }))
+		call('campaigns.api.lead_campaign_history', { lead: r.name })
+			.then(function (rows) {
+				clear(panel)
+				panel.appendChild(h('div', { class: 'cra-panel-head' }, [
+					h('div', { class: 'cra-panel-title' }, [svg('send'), h('span', { text: 'Campaign activity' })]),
+					h('button', { type: 'button', class: 'cra-btn', onclick: function () { openCampaigns() } }, [svg('send'), h('span', { text: 'Campaign Manager' })]),
+				]))
+				if (!rows.length) return panel.appendChild(h('div', { class: 'cra-empty', text: 'This lead has not been part of a campaign yet.' }))
+				var list = h('div', { class: 'cra-list' })
+				rows.forEach(function (x) {
+					var when = x.read_at || x.delivered_at || x.sent_at || x.failed_at || x.modified
+					var tone = x.status === 'Failed' ? 'red' : x.status === 'Skipped' ? 'amber' : x.status === 'Read' || x.status === 'Delivered' || x.status === 'Sent' ? 'green' : ''
+					var detail = x.skip_reason || x.failure_reason
+					list.appendChild(h('div', { class: 'cra-card' }, [
+						h('div', { class: 'cra-card-top' }, [
+							h('div', { class: 'cra-card-title' }, [
+								h('a', { href: '#', class: 'cra-link', text: x.campaign_name, onclick: function (e) { e.preventDefault(); openCampaigns('#/c/' + encodeURIComponent(x.campaign)) } }),
+								chip(x.channel),
+								chip(x.status, tone),
+							]),
+						]),
+						h('div', { class: 'cra-meta' }, [
+							when ? h('span', { text: fmt(when) || when }) : null,
+							detail ? h('span', { text: detail }) : null,
+						]),
+					]))
+				})
+				panel.appendChild(list)
+			})
+			.catch(function (err) {
+				clear(panel)
+				panel.appendChild(h('div', { class: 'cra-empty cra-bad', text: err.message }))
+			})
 	}
 
 	// ---- follow-ups panel (a tab on the Lead page) ---------------------------------------------------
@@ -487,97 +554,25 @@
 	}
 
 	// ---- follow-up queue ---------------------------------------------------------------------------------------
-	function openQueue(doctype) {
-		config().then(function (c) {
-			var scope = 'mine'
-			var bucket = 'overdue'
-			var body = h('div', { class: 'cra-queue' })
-			var m = openModal('Follow-up queue', [body], true)
-			var data = null
-
-			function load() {
-				call('followups.get_queue', { scope: scope, reference_doctype: doctype })
-					.then(function (res) { data = res; draw() })
-					.catch(function (err) { clear(body); body.appendChild(h('div', { class: 'cra-empty cra-bad', text: err.message })) })
-			}
-
-			function draw() {
-				clear(body)
-				var tabs = h('div', { class: 'cra-tabs' })
-				;[['overdue', 'Overdue'], ['today', 'Today'], ['upcoming', 'Upcoming']].forEach(function (t) {
-					tabs.appendChild(
-						h('button', {
-							type: 'button', class: 'cra-tab' + (bucket === t[0] ? ' cra-on' : ''),
-							onclick: function () { bucket = t[0]; draw() },
-						}, [h('span', { text: t[1] }), h('span', { class: 'cra-count' + (t[0] === 'overdue' && data.counts.overdue ? ' cra-late' : ''), text: String(data.counts[t[0]]) })])
-					)
-				})
-				var bar = h('div', { class: 'cra-queue-bar' }, [tabs])
-				if (c.is_manager) {
-					var sel = h('select', { class: 'cra-input cra-narrow' }, [h('option', { value: 'mine', text: 'My follow-ups' }), h('option', { value: 'all', text: 'Everyone' })])
-					sel.value = scope
-					sel.addEventListener('change', function () { scope = sel.value; load() })
-					bar.appendChild(sel)
-				}
-				body.appendChild(bar)
-
-				var rows = data.items.filter(function (i) { return i.bucket === bucket })
-				if (!rows.length) {
-					body.appendChild(h('div', { class: 'cra-empty', text: bucket === 'overdue' ? 'Nothing overdue. Nice.' : 'Nothing here.' }))
-					return
-				}
-				var list = h('div', { class: 'cra-list' })
-				rows.forEach(function (it) {
-					list.appendChild(
-						h('div', { class: 'cra-card' }, [
-							h('div', { class: 'cra-card-top' }, [
-								h('div', { class: 'cra-card-title' }, [
-									h('a', { class: 'cra-link', href: it.reference_url || '#', text: it.reference_title || it.reference_docname }),
-									chip(fmt(it.next_follow_up_on), bucket === 'overdue' ? 'red' : bucket === 'today' ? 'amber' : ''),
-								]),
-								h('div', { class: 'cra-card-actions' }, [
-									h('button', {
-										type: 'button', class: 'cra-btn cra-primary',
-										onclick: function () {
-											openFollowUp({ reference_docname: it.reference_docname })
-										},
-									}, [svg('phone-call'), h('span', { text: 'Log' })]),
-									h('button', {
-										type: 'button', class: 'cra-btn', title: 'Mark done', 'aria-label': 'Mark done',
-										onclick: function () {
-											call('followups.complete_follow_up', { name: it.name })
-												.then(function () { window.dispatchEvent(new CustomEvent('cra:followups-changed')) })
-												.catch(function (err) { toast(err.message, true) })
-										},
-									}, [svg('check')]),
-								]),
-							]),
-							it.remark ? h('div', { class: 'cra-remark', text: it.remark }) : null,
-							h('div', { class: 'cra-meta' }, [
-								h('span', { text: it.mode === 'Call' ? 'Last: attempt ' + it.attempt_no + ' - ' + (it.outcome || 'call') : 'Last follow-up' }),
-								h('span', { text: 'Owner: ' + (it.assigned_name || '') }),
-							]),
-						])
-					)
-				})
-				body.appendChild(list)
-			}
-			body.appendChild(h('div', { class: 'cra-empty', text: 'Loading...' }))
-			load()
-			// keep the queue current when a follow-up is added, edited or done
-			window.addEventListener('cra:followups-changed', function onChange() {
-				if (!document.body.contains(body)) return window.removeEventListener('cra:followups-changed', onChange)
-				load()
-			})
-			return m
-		}).catch(function (err) { toast(err.message, true) })
+	// The queue is the Follow-ups workspace: a large pop-up over the CRM with an "Open in a new tab" button. Managers
+	// see everyone's follow-ups there, sales users their own. `where` may be a tab hash such as '#today'.
+	function openQueue(doctype, where) {
+		return bridge()
+			.then(function (b) { b.openFollowUps(typeof where === 'string' ? where : '') })
+			.catch(function (err) { toast(err.message, true) })
 	}
 
 	window.crmAddonsUI = { openQueue: openQueue, openFollowUp: openFollowUp, loadBridge: bridge }
 
-	function openDashboard() {
+	function openDashboard(hash) {
 		return bridge()
-			.then(function (b) { b.openDashboard() })
+			.then(function (b) { b.openDashboard(typeof hash === 'string' ? hash : undefined) })
+			.catch(function (err) { toast(err.message, true) })
+	}
+
+	function openCampaigns(hash) {
+		return bridge()
+			.then(function (b) { b.openCampaigns(typeof hash === 'string' ? hash : '') })
 			.catch(function (err) { toast(err.message, true) })
 	}
 
@@ -597,34 +592,41 @@
 	// ---- floating buttons (every Leads view) ---------------------------------------------------------------
 	var fab = null
 	var badgeTimer = null
+	var badgeListener = null
 
 	function removeFab() {
 		if (fab) fab.remove()
 		fab = null
 		clearInterval(badgeTimer)
+		badgeTimer = null
+		// every set of floating buttons used to leave its refresh listener behind
+		if (badgeListener) window.removeEventListener('cra:followups-changed', badgeListener)
+		badgeListener = null
 	}
 
 	function ensureFab(r, c) {
 		if (fab && fab.__doctype === r.doctype && document.body.contains(fab)) return
 		removeFab()
+		// same order as the menus: Sales Dashboard, Follow-ups, Meetings, Campaigns
 		var kids = [
+			h('button', { type: 'button', class: 'cra-fab-btn', title: 'Sales Dashboard', onclick: function () { openDashboard() } }, [svg('chart'), h('span', { text: 'Sales Dashboard' })]),
+		]
+		var badge = h('span', { class: 'cra-badge', hidden: true })
+		if (c.follow_ups_enabled) {
+			kids.push(h('button', { type: 'button', class: 'cra-fab-btn', title: 'Follow-ups', onclick: function () { openQueue(r.doctype) } }, [svg('phone-call'), h('span', { text: 'Follow-ups' }), badge]))
+		}
+		kids.push(
 			h('button', {
 				type: 'button', class: 'cra-fab-btn', title: 'Meetings',
 				onclick: function () { bridge().then(function (b) { b.openCalendar({ reference_doctype: r.doctype, view: 'agenda' }) }).catch(function (err) { toast(err.message, true) }) },
-			}, [svg('calendar'), h('span', { text: 'Meetings' })]),
-		]
+			}, [svg('calendar'), h('span', { text: 'Meetings' })])
+		)
+		if (c.campaigns_enabled) {
+			kids.push(h('button', { type: 'button', class: 'cra-fab-btn', title: 'Campaign Manager', onclick: function () { openCampaigns() } }, [svg('send'), h('span', { text: 'Campaigns' })]))
+		}
 		if (c.follow_ups_enabled) {
-			var badge = h('span', { class: 'cra-badge', hidden: true })
-			kids.push(
-				h('button', { type: 'button', class: 'cra-fab-btn', title: 'Follow-ups', onclick: function () { openQueue(r.doctype) } }, [svg('phone-call'), h('span', { text: 'Follow-ups' }), badge])
-			)
-			kids.push(
-				h('button', {
-					type: 'button', class: 'cra-fab-btn', title: 'Sales Dashboard (opens in a new tab)',
-					onclick: openDashboard,
-				}, [svg('chart'), h('span', { text: 'Sales Dashboard' })])
-			)
 			var refreshBadge = function () {
+				if (document.hidden) return // nobody is looking: the next visit refreshes it
 				call('followups.get_queue', { scope: 'mine', reference_doctype: r.doctype })
 					.then(function (res) {
 						var n = res.counts.overdue + res.counts.today
@@ -636,6 +638,7 @@
 			}
 			refreshBadge()
 			badgeTimer = setInterval(refreshBadge, 180000)
+			badgeListener = refreshBadge
 			window.addEventListener('cra:followups-changed', refreshBadge)
 		}
 		fab = h('div', { class: 'cra-fab', 'data-cra': 'fab' }, kids)
@@ -653,28 +656,234 @@
 		dashSeenAt = 0
 	}
 
-	function ensureDashLink() {
+	// The same shortcuts are offered in the Dashboard header and in CRM's side menu.
+	// Order: the Sales Dashboard first (it also holds the Lead Nurturing view, so that has no link of its own), then
+	// Follow-ups, Meetings and the Campaign Manager.
+	function shortcuts(c) {
+		var list = [{ key: 'dashboard', label: 'Sales Dashboard', icon: 'chart-column', title: 'Sales Dashboard (sales, calls, meetings and lead nurturing)', run: function () { openDashboard() } }]
+		if (c.follow_ups_enabled) list.push({ key: 'followups', label: 'Follow-ups', icon: 'phone-call', title: 'Follow-ups', run: function () { openQueue('CRM Lead') } })
+		list.push({
+			key: 'meetings', label: 'Meetings', icon: 'calendar', title: 'Meetings',
+			run: function () { bridge().then(function (b) { b.openCalendar({ reference_doctype: 'CRM Lead', view: 'agenda' }) }).catch(function (err) { toast(err.message, true) }) },
+		})
+		if (c.campaigns_enabled) list.push({ key: 'campaigns', label: 'Campaigns', icon: 'send', title: 'Campaign Manager', run: function () { openCampaigns() } })
+		return list
+	}
+
+	/** A copy of CRM's own icon element (same width / height / class / stroke attributes) that holds one of our
+	 * Lucide drawings. Nothing is forced: size, colour and stroke come from the element it was copied from. */
+	function nativeIcon(protoSvg, name) {
+		var el
+		if (protoSvg) {
+			el = protoSvg.cloneNode(false)
+			Array.prototype.slice.call(el.attributes).forEach(function (a) {
+				if (/^(data-|id$|fill-rule|clip-rule|xmlns:)/.test(a.name)) el.removeAttribute(a.name)
+			})
+		} else {
+			el = document.createElementNS(NS, 'svg')
+			el.setAttribute('class', 'size-4 shrink-0 text-ink-gray-7')
+		}
+		var stroke = parseFloat(protoSvg && protoSvg.getAttribute('stroke-width'))
+		var lucide = protoSvg && /^0 0 24 24$/.test(protoSvg.getAttribute('viewBox') || '')
+		el.setAttribute('viewBox', '0 0 24 24')
+		el.setAttribute('fill', 'none')
+		el.setAttribute('stroke', 'currentColor')
+		el.setAttribute('stroke-width', lucide && stroke ? String(stroke) : '1.5')
+		el.setAttribute('stroke-linecap', 'round')
+		el.setAttribute('stroke-linejoin', 'round')
+		el.setAttribute('aria-hidden', 'true')
+		el.innerHTML = ICONS[name] || ''
+		return el
+	}
+
+	/** Turn a deep copy of one of CRM's own rows / buttons into ours: new label, our icon, no ids. */
+	function retarget(el, proto, label, iconName) {
+		el.removeAttribute('id')
+		el.removeAttribute('aria-current')
+		el.removeAttribute('data-cra-hidden')
+		el.style.removeProperty('display')
+		el.className = String(el.className).replace(/router-link-(exact-)?active/g, '')
+		Array.prototype.forEach.call(el.querySelectorAll('[id]'), function (n) { n.removeAttribute('id') })
+		var old = (proto.textContent || '').trim()
+		var nodes = el.querySelectorAll('*')
+		var labelEl = null
+		if (old) for (var i = 0; i < nodes.length; i++) if (!nodes[i].children.length && nodes[i].textContent.trim() === old) labelEl = nodes[i]
+		if (labelEl) { labelEl.textContent = label; labelEl.classList.add('cra-lbl') }
+		else if (old) { el.appendChild(h('span', { class: 'cra-lbl', text: label })) }
+		var protoSvg = proto.querySelector('svg')
+		var icon = nativeIcon(protoSvg, iconName)
+		var oldSvg = el.querySelector('svg')
+		if (oldSvg) oldSvg.replaceWith(icon)
+		else el.insertBefore(icon, el.firstChild)
+		return labelEl
+	}
+
+	// ---- shortcuts in the Dashboard header -------------------------------------------------------------------------------
+	// One compact segmented control built from copies of CRM's own "Refresh" button, so it looks like the
+	// rest of the header. Narrower than 1100px it shows icons only; narrower than 800px a single "..." button.
+	function headerProto(header) {
+		var right = header.lastElementChild
+		if (!right) return null
+		var want = translated('Refresh')
+		var fallback = null
+		var btns = right.querySelectorAll('button')
+		for (var i = 0; i < btns.length; i++) {
+			if (btns[i].closest('[data-cra]')) continue
+			fallback = fallback || btns[i]
+			if (btns[i].textContent.trim() === want) return btns[i]
+		}
+		return fallback
+	}
+
+	function headerButton(proto, s, iconOnly) {
+		var el
+		if (proto) {
+			el = proto.cloneNode(true)
+			el.removeAttribute('disabled')
+			var lab = retarget(el, proto, s.label, s.icon)
+			if (iconOnly && lab) lab.remove()
+			if (!lab && !iconOnly) el.appendChild(h('span', { class: 'cra-lbl', text: s.label }))
+		} else {
+			el = h('button', { class: 'cra-btn' }, [svg(s.icon), h('span', { class: 'cra-lbl', text: s.label })])
+		}
+		el.setAttribute('type', 'button')
+		el.setAttribute('title', s.title)
+		el.setAttribute('aria-label', s.label)
+		el.setAttribute('data-cra-shortcut', s.key)
+		el.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); closeMore(); s.run() })
+		return el
+	}
+
+	var morePop = null
+	function closeMore() {
+		if (morePop) morePop.hidden = true
+	}
+	document.addEventListener('click', function (e) { if (morePop && !morePop.parentElement.contains(e.target)) closeMore() })
+	document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeMore() })
+
+	function buildHeaderGroup(c, proto) {
+		var list = shortcuts(c)
+		var seg = h('div', { class: 'cra-seg' }, list.map(function (s) { return headerButton(proto, s, false) }))
+		if (proto) {
+			var radius = getComputedStyle(proto).borderRadius
+			if (radius) seg.style.setProperty('--cra-seg-r', radius)
+		}
+		var more = h('div', { class: 'cra-more' })
+		var trigger = headerButton(proto, { key: 'more', label: 'Pro Pack', icon: 'ellipsis', title: 'Meetings, Follow-ups, Campaigns and dashboards', run: function () {} }, true)
+		trigger.setAttribute('aria-haspopup', 'menu')
+		var pop = h('div', { class: 'cra-pop', role: 'menu', hidden: true }, list.map(function (s) {
+			return h('button', { type: 'button', class: 'cra-pop-item', role: 'menuitem', 'data-cra-shortcut': s.key, onclick: function (e) { e.stopPropagation(); closeMore(); s.run() } },
+				[svg(s.icon, 'cra-pop-i'), h('span', { text: s.label })])
+		}))
+		trigger.addEventListener('click', function (e) { e.stopPropagation(); var open = pop.hidden; closeMore(); pop.hidden = !open; morePop = pop })
+		more.appendChild(trigger)
+		more.appendChild(pop)
+		morePop = pop
+		return h('div', { class: 'cra-dash-group', 'data-cra': 'dash-link' }, [seg, more])
+	}
+
+	function ensureDashLink(c) {
 		if (dashLink && document.body.contains(dashLink)) return
 		var header = document.querySelector('header')
 		if (!dashSeenAt) dashSeenAt = Date.now()
-		var button = h('button', {
-			type: 'button', class: 'cra-btn', title: 'Open the Sales Dashboard in a new tab', 'data-cra': 'dash-link', onclick: openDashboard,
-		}, [svg('chart'), h('span', { text: 'Sales Dashboard' })])
 		var right = header && header.lastElementChild
 		if (right && right !== header.firstElementChild) {
-			right.insertBefore(button, right.firstChild)
-			dashLink = button
+			var group = buildHeaderGroup(c, headerProto(header))
+			right.insertBefore(group, right.firstChild)
+			dashLink = group
 		} else if (Date.now() - dashSeenAt > 2500) {
-			// the header markup is not what we expect: a floating button keeps it reachable
-			dashLink = h('div', { class: 'cra-fab', 'data-cra': 'dash-link' }, [button])
+			// the header markup is not what we expect: a floating group keeps them reachable
+			var floating = buildHeaderGroup(c, null)
+			floating.className += ' cra-fab'
+			dashLink = floating
 			document.body.appendChild(dashLink)
 		}
+	}
+
+	// ---- shortcuts in CRM's side menu ---------------------------------------------------------------------------------
+	// Copies of CRM's own menu rows, placed in the same list right after the last visible native entry, so the spacing,
+	// font, icon size / stroke, hover state and light / dark theme are CRM's own. No heading: one thin divider.
+	var sideEls = []
+	var sideSig = ''
+
+	function removeSidebar() {
+		sideEls.forEach(function (n) { n.remove() })
+		sideEls = []
+		sideSig = ''
+	}
+
+	function visible(el) {
+		return !el.hasAttribute('data-cra-hidden') && getComputedStyle(el).display !== 'none'
+	}
+
+	/** The first menu list (CRM's "All Views" section) with its native rows, the row to copy, and the last visible row. */
+	function sideNative() {
+		var links = document.querySelectorAll('nav a[href^="/crm/"], aside a[href^="/crm/"]')
+		var nav = null
+		for (var i = 0; i < links.length; i++) {
+			var a = links[i]
+			if (a.closest('[data-cra]') || a.getAttribute('data-cra-side') || !a.closest('nav')) continue
+			if (!visible(a) || a.closest('[data-cra-hidden]')) continue
+			nav = a.closest('nav')
+			break
+		}
+		if (!nav) return null
+		var rows = Array.prototype.filter.call(nav.children, function (r) {
+			return !r.hasAttribute('data-cra') && visible(r) && (r.matches('a[href], button') || !!r.querySelector('a[href], button'))
+		})
+		if (!rows.length) return null
+		var proto = rows[0]
+		for (var j = 0; j < rows.length; j++) {
+			var link = rows[j].matches('a') ? rows[j] : rows[j].querySelector('a')
+			if (link && link.getAttribute('aria-current') !== 'page' && !/router-link-(exact-)?active/.test(String(link.className)) && getComputedStyle(link).backgroundColor === 'rgba(0, 0, 0, 0)') { proto = rows[j]; break }
+		}
+		return { nav: nav, proto: proto, last: rows[rows.length - 1] }
+	}
+
+	function sideRow(proto, s) {
+		var el = proto.cloneNode(true)
+		retarget(el, proto, s.label, s.icon)
+		var link = el.matches('a') ? el : el.querySelector('a')
+		if (link) {
+			link.setAttribute('href', '#')
+			link.removeAttribute('aria-current')
+		}
+		el.setAttribute('data-cra', 'side')
+		el.setAttribute('data-cra-side', s.key)
+		el.title = s.title
+		el.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); s.run() })
+		return el
+	}
+
+	function ensureSidebar(c) {
+		if (!c.show_sidebar_links) return removeSidebar()
+		var found = sideNative()
+		if (!found) return // the menu is not drawn yet: the next change of the page calls this again
+		var list = shortcuts(c)
+		var labeled = !!(found.proto.textContent || '').trim()
+		var sig = list.map(function (s) { return s.key }).join(',') + '|' + (labeled ? 'l' : 'i')
+		var intact = sig === sideSig && sideEls.length && sideEls.every(function (n) { return found.nav.contains(n) }) &&
+			sideEls[0].previousElementSibling === found.last
+		if (intact) return
+		removeSidebar()
+		found = sideNative()
+		if (!found) return
+		var sep = h('div', { class: 'cra-side-sep', 'data-cra': 'side', role: 'separator' })
+		var rows = list.map(function (s) { return sideRow(found.proto, s) })
+		var anchor = found.last
+		;[sep].concat(rows).forEach(function (n) {
+			anchor.parentNode.insertBefore(n, anchor.nextSibling)
+			anchor = n
+		})
+		sideEls = [sep].concat(rows)
+		sideSig = sig
 	}
 
 	// ---- tabs on the Lead page --------------------------------------------------------------------------------
 	var TABS = [
 		{ key: 'meetings', label: 'Meetings', icon: 'calendar', render: renderMeetings },
 		{ key: 'followups', label: 'Follow-ups', icon: 'phone-call', render: renderFollowUps },
+		{ key: 'campaigns', label: 'Campaigns', icon: 'send', render: renderCampaigns },
 	]
 	var tabState = { list: null, active: null, panel: null, route: null }
 
@@ -728,6 +937,7 @@
 		var proto = realTabs(list)[0]
 		TABS.forEach(function (meta) {
 			if (meta.key === 'followups' && !c.follow_ups_enabled) return
+			if (meta.key === 'campaigns' && !c.campaigns_enabled) return
 			var btn = proto.cloneNode(true)
 			styleTab(btn, meta)
 			btn.addEventListener('click', function (e) {
@@ -857,15 +1067,23 @@
 	}
 
 	function hideCrmParts(c) {
-		if (c.hide_deals_menu) {
-			// every link to a Deals page: the menu entry and any saved Deals views under it
-			Array.prototype.forEach.call(document.querySelectorAll('nav a[href^="/crm/deals"], aside a[href^="/crm/deals"]'), hideItem)
-			// menu entries that are buttons rather than links: match the label
-			var label = translated('Deals')
-			Array.prototype.forEach.call(document.querySelectorAll('nav button, aside button'), function (b) {
-				if (b.textContent.trim() === label && b.querySelector('svg')) hideItem(b)
+		// every link to one of these pages: the menu entry and any saved views under it; entries that are
+		// buttons rather than links are matched by label
+		;[
+			['hide_deals_menu', '/crm/deals', 'Deals'],
+			['hide_notes_menu', '/crm/notes', 'Notes'],
+			['hide_tasks_menu', '/crm/tasks', 'Tasks'],
+			['hide_call_logs_menu', '/crm/call-logs', 'Call Logs'],
+		].forEach(function (m) {
+			if (!c[m[0]]) return
+			Array.prototype.forEach.call(document.querySelectorAll('nav a[href^="' + m[1] + '"], aside a[href^="' + m[1] + '"]'), function (a) {
+				if (!a.closest('[data-cra]')) hideItem(a)
 			})
-		}
+			var label = translated(m[2])
+			Array.prototype.forEach.call(document.querySelectorAll('nav button, aside button'), function (b) {
+				if (!b.closest('[data-cra]') && b.textContent.trim() === label && b.querySelector('svg')) hideItem(b)
+			})
+		})
 		if (c.hide_convert_button) {
 			var names = ['Convert to Deal', translated('Convert to Deal')]
 			Array.prototype.forEach.call(document.querySelectorAll('button'), function (b) {
@@ -880,15 +1098,18 @@
 
 	// ---- keep everything in step with CRM's single-page navigation ----------------------------------------------------------
 	var timer = null
+	var retries = 0 // how many times in a row the Dashboard header was not there yet
 	function schedule() {
 		if (timer) return
 		timer = setTimeout(sync, 200)
 	}
 
+	var syncCount = 0
 	function sync() {
+		syncCount++
 		timer = null
 		if (/^\/crm(\/|$)/.test(location.pathname)) {
-			config().then(hideCrmParts).catch(function () { /* not signed in: nothing to hide */ })
+			config().then(function (c) { hideCrmParts(c); ensureSidebar(c) }).catch(function () { /* not signed in: nothing to hide */ })
 		}
 		var r = route()
 		if (!r) {
@@ -904,10 +1125,13 @@
 				if (now.kind === 'dashboard') {
 					removeFab()
 					deactivate(true)
-					ensureDashLink()
-					if (!dashLink) setTimeout(schedule, 1200) // the header is still loading: look again
+					ensureDashLink(c)
+					// the header is still loading: look again, a few times (never for ever)
+					if (!dashLink && retries++ < 8) setTimeout(schedule, 1200)
+					if (dashLink) retries = 0
 					return
 				}
+				retries = 0
 				removeDashLink()
 				// only Kanban needs floating buttons: the list view gets header buttons from CRM's list script
 				if (now.kind === 'list' && now.viewType === 'kanban' && c.show_floating_buttons) ensureFab(now, c)
@@ -928,6 +1152,33 @@
 	})
 	window.addEventListener('popstate', schedule)
 	window.addEventListener('cra:route', schedule)
-	new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true })
+
+	// Our own changes (the menu rows, header buttons, tab panel, toasts, the floating buttons) must not call sync()
+	// again, and neither must text updates: only a node CRM itself added or removed can need a look.
+	var OWN = '[data-cra], [data-crm-addons], [data-cra-tab], .cra-toast, .cra-overlay, .cra-fab'
+	function ours(n) {
+		if (!n) return true
+		var el = n.nodeType === 1 ? n : n.parentElement
+		return !el || !!(el.closest && el.closest(OWN))
+	}
+	function relevant(records) {
+		for (var i = 0; i < records.length; i++) {
+			var r = records[i]
+			if (ours(r.target)) continue
+			var j, n
+			for (j = 0; j < r.addedNodes.length; j++) {
+				n = r.addedNodes[j]
+				if (n.nodeType === 1 && !ours(n)) return true
+			}
+			for (j = 0; j < r.removedNodes.length; j++) {
+				n = r.removedNodes[j]
+				// something of ours that CRM's own re-render swept away has to come back
+				if (n.nodeType === 1 && (!ours(n) || n.hasAttribute('data-cra') || n.hasAttribute('data-cra-tab'))) return true
+			}
+		}
+		return false
+	}
+	new MutationObserver(function (records) { if (relevant(records)) schedule() }).observe(document.body, { childList: true, subtree: true })
+	window.__crmAddonsStats = function () { return { syncs: syncCount, timer: !!timer, retries: retries } }
 	sync()
 })()

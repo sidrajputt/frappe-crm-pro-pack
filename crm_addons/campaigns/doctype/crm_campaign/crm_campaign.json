@@ -1,0 +1,420 @@
+{
+ "actions": [],
+ "creation": "2026-10-06 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "campaign_name",
+  "status",
+  "campaign_type",
+  "column_break_a",
+  "campaign_owner",
+  "tags",
+  "description",
+  "notes",
+  "audience_section",
+  "audience_doctype",
+  "audience_mode",
+  "saved_view",
+  "audience_filters",
+  "selected_records",
+  "audience_snapshot",
+  "channels_section",
+  "steps",
+  "consent_confirmed",
+  "schedule_section",
+  "send_mode",
+  "scheduled_at",
+  "timezone",
+  "stop_on_reply",
+  "trigger_section",
+  "trigger_event",
+  "trigger_status",
+  "window_section",
+  "window_enabled",
+  "window_start",
+  "window_end",
+  "window_weekdays_only",
+  "tracking_section",
+  "track_clicks",
+  "rules",
+  "execution_section",
+  "batch_size",
+  "rate_per_minute",
+  "max_retries",
+  "stats_section",
+  "total_recipients",
+  "started_at",
+  "completed_at",
+  "status_note",
+  "health_note",
+  "health_alert_at",
+  "source_template",
+  "duplicate_of",
+  "automation"
+ ],
+ "fields": [
+  {
+   "fieldname": "campaign_name",
+   "fieldtype": "Data",
+   "label": "Campaign Name",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nScheduled\nQueued\nRunning\nPaused\nCompleted\nCancelled\nFailed",
+   "default": "Draft",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "campaign_type",
+   "fieldtype": "Select",
+   "label": "Campaign Type",
+   "options": "Marketing\nFollow-up\nAnnouncement\nReminder\nOther",
+   "default": "Marketing",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_a",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "campaign_owner",
+   "fieldtype": "Link",
+   "label": "Campaign Owner",
+   "options": "User",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "tags",
+   "fieldtype": "Small Text",
+   "label": "Tags"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Text",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "audience_section",
+   "fieldtype": "Section Break",
+   "label": "Audience"
+  },
+  {
+   "fieldname": "audience_doctype",
+   "fieldtype": "Data",
+   "label": "Audience Doctype",
+   "default": "CRM Lead",
+   "read_only": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "audience_mode",
+   "fieldtype": "Select",
+   "label": "Audience Mode",
+   "options": "CRM Filters\nSelected Records\nSaved Segment",
+   "default": "CRM Filters"
+  },
+  {
+   "fieldname": "saved_view",
+   "fieldtype": "Link",
+   "label": "Saved Segment",
+   "options": "CRM View Settings",
+   "depends_on": "eval:doc.audience_mode=='Saved Segment'"
+  },
+  {
+   "fieldname": "audience_filters",
+   "fieldtype": "Code",
+   "label": "Audience Filters",
+   "options": "JSON",
+   "description": "[[field, operator, value], ...] - checked on the server.",
+   "depends_on": "eval:doc.audience_mode=='CRM Filters'"
+  },
+  {
+   "fieldname": "selected_records",
+   "fieldtype": "Code",
+   "label": "Selected Records",
+   "options": "JSON",
+   "depends_on": "eval:doc.audience_mode=='Selected Records'"
+  },
+  {
+   "fieldname": "audience_snapshot",
+   "fieldtype": "Code",
+   "label": "Audience Snapshot",
+   "options": "JSON",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "channels_section",
+   "fieldtype": "Section Break",
+   "label": "Channels and Content"
+  },
+  {
+   "fieldname": "steps",
+   "fieldtype": "Table",
+   "label": "Steps",
+   "options": "CRM Campaign Step",
+   "reqd": 0
+  },
+  {
+   "fieldname": "consent_confirmed",
+   "fieldtype": "Check",
+   "label": "I confirm these recipients agreed to receive WhatsApp marketing messages",
+   "description": "Meta requires opt-in for marketing templates."
+  },
+  {
+   "fieldname": "schedule_section",
+   "fieldtype": "Section Break",
+   "label": "Schedule"
+  },
+  {
+   "fieldname": "send_mode",
+   "fieldtype": "Select",
+   "label": "Send Mode",
+   "options": "Send Now\nSchedule\nTrigger",
+   "default": "Send Now"
+  },
+  {
+   "fieldname": "scheduled_at",
+   "fieldtype": "Datetime",
+   "label": "Scheduled At",
+   "depends_on": "eval:doc.send_mode=='Schedule'"
+  },
+  {
+   "fieldname": "timezone",
+   "fieldtype": "Data",
+   "label": "Timezone",
+   "depends_on": "eval:doc.send_mode=='Schedule'"
+  },
+  {
+   "fieldname": "stop_on_reply",
+   "fieldtype": "Check",
+   "label": "Stop the journey for a lead who replies",
+   "default": "0",
+   "description": "Later steps are skipped for leads who sent a WhatsApp message or email after the campaign started."
+  },
+  {
+   "fieldname": "execution_section",
+   "fieldtype": "Section Break",
+   "label": "Delivery Settings",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "batch_size",
+   "fieldtype": "Int",
+   "label": "Batch Size",
+   "description": "Messages claimed per batch. Empty = value from CRM Addons Settings."
+  },
+  {
+   "fieldname": "rate_per_minute",
+   "fieldtype": "Int",
+   "label": "Rate Per Minute",
+   "description": "Maximum messages per minute for this campaign. Empty = settings value."
+  },
+  {
+   "fieldname": "max_retries",
+   "fieldtype": "Int",
+   "label": "Max Retries",
+   "description": "Empty = value from CRM Addons Settings."
+  },
+  {
+   "fieldname": "stats_section",
+   "fieldtype": "Section Break",
+   "label": "Progress",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "total_recipients",
+   "fieldtype": "Int",
+   "label": "Total Recipients",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "started_at",
+   "fieldtype": "Datetime",
+   "label": "Started At",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "completed_at",
+   "fieldtype": "Datetime",
+   "label": "Completed At",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "status_note",
+   "fieldtype": "Small Text",
+   "label": "Status Note",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "source_template",
+   "fieldtype": "Link",
+   "label": "Source Template",
+   "options": "CRM Campaign Template",
+   "read_only": 1
+  },
+  {
+   "fieldname": "duplicate_of",
+   "fieldtype": "Link",
+   "label": "Duplicate Of",
+   "options": "CRM Campaign",
+   "read_only": 1
+  },
+  {
+   "fieldname": "trigger_section",
+   "fieldtype": "Section Break",
+   "label": "Automatic start",
+   "depends_on": "eval:doc.send_mode=='Trigger'"
+  },
+  {
+   "fieldname": "trigger_event",
+   "fieldtype": "Select",
+   "label": "Start for a lead when",
+   "options": "\nLead created\nLead status changed",
+   "description": "An automatic campaign keeps running: every lead that matches the audience and the event is enrolled once."
+  },
+  {
+   "fieldname": "trigger_status",
+   "fieldtype": "Link",
+   "label": "Status changed to",
+   "options": "CRM Lead Status",
+   "depends_on": "eval:doc.trigger_event=='Lead status changed'",
+   "description": "Leave empty for any status change."
+  },
+  {
+   "fieldname": "window_section",
+   "fieldtype": "Section Break",
+   "label": "Sending hours"
+  },
+  {
+   "fieldname": "window_enabled",
+   "fieldtype": "Check",
+   "label": "Only send during these hours",
+   "default": "0"
+  },
+  {
+   "fieldname": "window_start",
+   "fieldtype": "Time",
+   "label": "From",
+   "default": "09:00:00",
+   "depends_on": "window_enabled"
+  },
+  {
+   "fieldname": "window_end",
+   "fieldtype": "Time",
+   "label": "Until",
+   "default": "18:00:00",
+   "depends_on": "window_enabled"
+  },
+  {
+   "fieldname": "window_weekdays_only",
+   "fieldtype": "Check",
+   "label": "Monday to Friday only",
+   "default": "0",
+   "depends_on": "window_enabled"
+  },
+  {
+   "fieldname": "tracking_section",
+   "fieldtype": "Section Break",
+   "label": "Tracking and automation"
+  },
+  {
+   "fieldname": "track_clicks",
+   "fieldtype": "Check",
+   "label": "Track link clicks in emails",
+   "default": "1"
+  },
+  {
+   "fieldname": "rules",
+   "fieldtype": "Table",
+   "label": "Lead updates",
+   "options": "CRM Campaign Rule"
+  },
+  {
+   "fieldname": "health_note",
+   "fieldtype": "Small Text",
+   "label": "Health warning",
+   "read_only": 1,
+   "description": "Set by the campaign health check (failure rate, sending account problems)."
+  },
+  {
+   "fieldname": "health_alert_at",
+   "fieldtype": "Datetime",
+   "label": "Health alert sent at",
+   "read_only": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "automation",
+   "fieldtype": "Link",
+   "label": "Automation",
+   "options": "CRM Campaign Automation",
+   "read_only": 1,
+   "search_index": 1,
+   "description": "Set when this campaign holds the message sequence of an automation."
+  }
+ ],
+ "modified": "2026-10-06 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Campaigns",
+ "name": "CRM Campaign",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1
+  },
+  {
+   "role": "Sales Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1
+  },
+  {
+   "role": "Sales User",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "autoname": "format:CAMP-{#####}",
+ "title_field": "campaign_name",
+ "search_fields": "campaign_name,tags",
+ "track_changes": 1,
+ "show_title_field_in_link": 1,
+ "allow_rename": 0
+}

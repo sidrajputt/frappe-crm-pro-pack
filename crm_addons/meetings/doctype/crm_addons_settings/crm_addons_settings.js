@@ -2,6 +2,13 @@
 frappe.ui.form.on("CRM Addons Settings", {
 	refresh(frm) {
 		frm.disable_save_on_unsaved = false;
+		frm.dashboard.add_comment(
+			__("There is a friendlier version of this page with switches, explanations for every option and a setup checklist:") +
+				' <a href="/pro-pack-setup"><b>' + __("Open the setup page") + "</b></a>",
+			"blue",
+			true
+		);
+		frm.add_custom_button(__("Open the setup page"), () => window.open("/pro-pack-setup", "_blank")).addClass("btn-primary");
 		frm.add_custom_button(__("Test Google connection"), () => {
 			frappe.call({
 				method: "crm_addons.api.test_google_connection",

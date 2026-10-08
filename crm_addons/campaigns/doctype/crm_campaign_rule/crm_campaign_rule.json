@@ -1,0 +1,47 @@
+{
+ "actions": [],
+ "creation": "2026-10-08 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "istable": 1,
+ "field_order": [
+  "event",
+  "action",
+  "value"
+ ],
+ "fields": [
+  {
+   "fieldname": "event",
+   "fieldtype": "Select",
+   "label": "When a lead",
+   "options": "Replied\nClicked a link\nOpened or read\nFailed or bounced\nOpted out",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "action",
+   "fieldtype": "Select",
+   "label": "Do this",
+   "options": "Set lead status\nCreate a follow-up\nAdd a note to the lead",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "value",
+   "fieldtype": "Data",
+   "label": "Value",
+   "in_list_view": 1,
+   "description": "The status, the number of days until the follow-up, or the note text."
+  }
+ ],
+ "modified": "2026-10-08 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Campaigns",
+ "name": "CRM Campaign Rule",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

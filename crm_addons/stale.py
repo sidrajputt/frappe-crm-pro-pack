@@ -4,6 +4,7 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, cint, escape_html, getdate, now_datetime, nowdate
 
+from crm_addons import debuglog
 from crm_addons.notifications import create_record_notification
 from crm_addons.utils import get_reference_info, get_settings
 
@@ -52,6 +53,7 @@ def stale_records(doctype, days):
 	)
 
 
+@debuglog.traced("stale.send_stale_alerts")
 def send_stale_alerts():
 	"""Daily. One alert per quiet spell: it is sent again only after something happens and
 	the record goes quiet again."""

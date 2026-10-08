@@ -19,6 +19,7 @@ It installs like any other Frappe app (`bench get-app`, `bench install-app`) and
 - [First-time setup](#first-time-setup)
 - [Using it](#using-it)
 - [Sales Dashboard](#sales-dashboard)
+- [Campaign Manager](#campaign-manager)
 - [Roles and permissions](#roles-and-permissions)
 - [Settings reference](#settings-reference)
 - [How it works](#how-it-works)
@@ -46,7 +47,7 @@ It installs like any other Frappe app (`bench get-app`, `bench install-app`) and
 - **The next follow-up is the outcome.** Logging a newer follow-up closes the older open one.
 - **Reminders** to the follow-up owner when one is due, in-app and by email.
 - **Automatic escalation.** After N unreached calls in a row (default 3) a note goes on the lead's timeline and the lead owner and Sales Managers are notified. Optionally the lead moves to a status you choose, such as "Unreachable".
-- **Follow-up queue** with Overdue, Today and Upcoming, for you or (managers) for everyone.
+- **Follow-ups workspace**, a large pop-up over the CRM with an **Open in a new tab** button for the full-screen page (`/followups`) built like the Sales Dashboard: KPI cards and tabs for Overdue, Due today, Upcoming and Done, search, owner / outcome / due-date filters, a list or a by-day view, click-to-call phone links, and row actions to log a call, mark done, reschedule or open the lead (bulk done and bulk reschedule too). **Managers see everyone's follow-ups by default** and can narrow to one person; sales users only see their own.
 - **WhatsApp after a missed call** (optional): when a call is logged as Did Not Pick or Did Not Connect, offer a WhatsApp message through CRM's own WhatsApp integration.
 - **Follow-up templates** you edit yourself, for one-tap logging.
 
@@ -56,10 +57,27 @@ It installs like any other Frappe app (`bench get-app`, `bench install-app`) and
 - **Stale-lead alerts.** Open leads with no activity for N days (default 7) notify their owner once per quiet spell.
 - **Columns for the Leads list and Kanban cards:** Next Follow-up, Last Call Outcome, Last Follow-up Remark, Call Attempt, Next Meeting and Lead Score, so the essentials show without opening the lead.
 
+### Campaign Manager (Email and WhatsApp)
+
+- **Journeys.** Chain steps on later days across both channels, each optionally conditional on the previous one (for example a WhatsApp reminder two days after an email that was not opened), with an optional stop when a lead replies.
+- **One campaign, both channels.** Pick an audience (CRM filters, a saved Leads-list segment, or selected leads), choose Email, WhatsApp or both, pick templates, preview as a real lead, send now or schedule.
+- **Built on what you already run.** Email goes through Frappe's mail system and is logged on the Lead; WhatsApp goes through the frappe_whatsapp app and its approved Meta templates. No second sender, no second template system.
+- **Safe at scale.** Background batches with a rate limit, pause / resume / cancel, retry of messages that never reached the provider, and a database guarantee that nobody gets the same message twice.
+- **Compliance built in.** Opt-out list, signed unsubscribe link, WhatsApp STOP replies, and a WhatsApp opt-in rule before launch.
+- **Honest analytics.** Recipient-level report plus per-channel numbers: only what Frappe and Meta really report.
+- **Click tracking.** Links in emails are routed through your own site, signed so they cannot be forged; clicks count as opens and show which links work.
+- **Sending hours.** Keep messages to working hours in the campaign's time zone, optionally Monday to Friday; anything due outside waits.
+- **List clean-up.** Bounced emails and numbers that are not on WhatsApp are taken off the sending list automatically, with a page to review and restore them.
+- **Health alerts.** The owner is told when a running campaign has a high failure rate, a refused login or no way to send.
+- **Automations** (own section in the Campaign Manager). *When* a lead is created, changes status, replies, clicks, opens, bounces or opts out, *only for leads that match* optional filters, *then* send a message sequence, set the status, create a follow-up or add a note, in the order you choose. Each lead goes through an automation once; as many automations as you like, each with an on / off switch.
+- **Pause one step**, retry failed messages, a **calendar** of what goes out when (busy days flagged), and **cost and results** (price per message, deals and revenue from the leads reached).
+
+See [docs/CAMPAIGN_MANAGER.md](docs/CAMPAIGN_MANAGER.md).
+
 ### Built into CRM's own screens
 
 - **Tabs on the Lead page:** Meetings and Follow-ups, next to Activity, Emails, Comments, Calls, Tasks, Notes and Attachments.
-- **Header buttons:** Schedule Meeting and Add Follow Up on the Lead page; Meetings, Follow-ups and Sales Dashboard on the Leads list; floating buttons on the Kanban view.
+- **Header buttons:** Schedule Meeting and Add Follow Up on the Lead page; Meetings, Follow-ups and Sales Dashboard on the Leads list; floating buttons on the Kanban view; a **CRM Pro Pack** group in the left menu and a button group in the Dashboard header (Meetings, Follow-ups, Campaigns, Sales Dashboard).
 - **On the Lead timeline:** every meeting, reschedule, cancellation and follow-up is posted as a comment.
 - **Optional:** hide the Deals menu entry and the Convert to Deal button, if your team only works with leads.
 - **CRM dashboard charts:** meetings and follow-ups charts you can add to CRM's own dashboard.
@@ -129,16 +147,21 @@ Follow-ups, scoring, the Sales Dashboard and the in-app notifications need no ex
 
 ## Sales Dashboard
 
-A full-screen dashboard in its own browser tab (open it from the **Sales Dashboard** button, or go to `/sales-dashboard`). It follows the roles: **sales users see only their own numbers; managers see the whole team and can pick one person.**
+A large pop-up over the CRM, like the Meetings calendar (open it from the **Sales Dashboard** button); its **Open in a new tab** button gives the full-screen version (`/sales-dashboard`, same tab, date range, person and theme). It follows the roles: **sales users see only their own numbers; managers see the whole team and can pick one person.**
 
-- **Date range dropdown** with presets (today, yesterday, last 7 and 30 days, this and last week, this and last month, this quarter, this year) and a calendar for a custom range. Everything is compared with the previous period.
+- **Date range picker** (the same one on the Follow-ups page) with presets (today, yesterday, last 7 and 30 days, this and last week, this and last month, this quarter, this year) and a calendar for a custom range, usable with the keyboard (arrow keys, PageUp / PageDown, Esc). A range is always the days from the first to the last, both included, whole days; every number, chart, export and the "previous period" (the same number of days right before it) use that same range. The last range is remembered per page.
 - **KPI cards:** calls today, follow-ups due today and overdue, calls, connect rate, follow-ups added, leads added, meetings held, leads converted to deals, average time to first call, stale leads.
 - **Daily activity** for calls, follow-ups or leads added, split by result or by person, and a **call outcomes** donut.
 - **Lead funnel** (added, contacted, reached on a call, meeting booked, converted), **calls by hour** with the best time to call, and **attempts to connect**.
 - **Team performance** table for managers (click a column to sort) and **call outcomes by person**.
 - **Pipeline** by status with average age, **leads by source**, **lead temperature**, **meetings by outcome**.
 - **Follow-up queue**, **recent calls** and **upcoming meetings**, each opening the lead.
-- **Export** to an Excel workbook (a sheet per section plus the full call log) or the call log as CSV. Light theme by default, dark theme on a toggle.
+- **Export** to an Excel workbook (a sheet per section plus the full call log) or the call log as CSV. It follows the CRM's light / dark theme (no toggle of its own).
+- **Lead Nurturing** tab (when the Campaign Manager is on; `/sales-dashboard#nurturing` opens it directly): the campaigns of the selected date range as KPI cards (campaigns, recipients reached, delivered, read / open and reply rates, failed, opt-outs), messages sent by day and channel, an engagement funnel, Email vs WhatsApp, campaigns by status, top campaigns (each opens in the Campaign Manager) and how many open leads were nurtured. Sales users only see their own campaigns.
+
+## Campaign Manager
+
+Open it from the **Campaigns** button on the Leads list or Kanban view, or go to `/campaigns`. It needs an outgoing Email Account for email and the frappe_whatsapp app (active default account, approved templates) for WhatsApp; either channel works without the other. Full guide, flows, testing checklist and rollback: [docs/CAMPAIGN_MANAGER.md](docs/CAMPAIGN_MANAGER.md).
 
 ## Roles and permissions
 
@@ -150,6 +173,8 @@ A full-screen dashboard in its own browser tab (open it from the **Sales Dashboa
 Sales users can only schedule on leads they are allowed to see in CRM. The dashboard and its export enforce the same rules on the server, so a sales user cannot see another person's numbers by changing the address.
 
 ## Settings reference
+
+Open the **setup page** at `/pro-pack-setup` (System Managers; the Campaign Manager's *Settings* link goes there too). It groups every option by area, gives each a switch or field and an **(i)** button that explains it on hover, locks options whose parent switch is off and says why, validates numbers before saving, has a search box, and starts with a **setup checklist** (Google, outgoing email, scheduler, background worker, WhatsApp, country code) that shows what still needs doing and how. It reads and writes the same *CRM Addons Settings* record as the classic form at `/app/crm-addons-settings`, which still works.
 
 All settings are in **CRM Addons Settings** (Desk).
 
@@ -174,8 +199,10 @@ All settings are in **CRM Addons Settings** (Desk).
 | Show "Meetings" and "Follow-ups" buttons on the Leads list | On | Header buttons on the Leads list |
 | Show "Add Follow Up" button | On | Header button on the Lead page |
 | Show floating buttons on the Kanban view | On | Meetings, Follow-ups and Sales Dashboard on Kanban |
+| Show links in the side menu | On | Sales Dashboard (it also holds the Lead Nurturing view), Follow-ups, Meetings and Campaigns rows after CRM's own left-menu entries, and a compact button group in the Dashboard header |
 | Add Meetings and Follow-ups tabs to Lead pages | On | The tabs beside Activity, Emails, and so on |
 | Hide "Deals" from the side menu | Off | Hides the entry on screen only |
+| Hide "Notes" / "Tasks" / "Call Logs" from the side menu | Off | Same as Deals, one switch each |
 | Hide the "Convert to Deal" button | Off | Hides the button on screen only |
 
 Follow-up templates are managed under **CRM Follow Up Template** (eight starters are added on install).

@@ -15,11 +15,11 @@
 			if (window.parent !== window) theme = window.parent.document.documentElement.getAttribute('data-theme') || theme
 		} catch (e) { /* cross-origin parent: keep the URL value */ }
 		if (!theme) theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-		document.documentElement.setAttribute('data-theme', theme)
+		if (document.documentElement.getAttribute('data-theme') !== theme) document.documentElement.setAttribute('data-theme', theme)
 	}
 	applyTheme()
 	try {
-		new MutationObserver(applyTheme).observe(window.parent.document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+		if (window.parent !== window) new MutationObserver(applyTheme).observe(window.parent.document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
 	} catch (e) { /* not embedded */ }
 
 	function tellParent(type, extra) {
@@ -289,7 +289,7 @@
 				} catch (e) { error.value = e.message } finally { saving.value = false }
 			}
 			return {
-				isNew, f, record, locked, guests, error, saving, durations, dur, durLabel, onStart, onEnd, setDuration, minutes, setupUrl: '/app/crm-addons-settings',
+				isNew, f, record, locked, guests, error, saving, durations, dur, durLabel, onStart, onEnd, setDuration, minutes, setupUrl: '/pro-pack-setup',
 				recQuery, recResults, recOpen, openRecords, pickRecord, clearRecord,
 				gq, gOpen, hi, freshSuggestions, addGuest, removeGuest, onGuestKey, closeGuestsSoon,
 				formEl, providerInfo, setupNotice, heading, save, close: () => emit('close'),
@@ -860,10 +860,20 @@
 			function onChanged(m) { selected.value = m; tellParent('saved', { meeting: m }); load(true) }
 			function closeEditor() { editor.value = null; if (editorOnly) tellParent('close') }
 			const closeSelf = () => tellParent('close')
-			const openFull = () => window.open(location.pathname + (refName ? '?reference_name=' + encodeURIComponent(refName) : ''), '_blank')
+			// the same view and day in a tab of its own, with the CRM's theme (no embed)
+			const openFull = () => {
+				const q = new URLSearchParams()
+				if (params.get('v')) q.set('v', params.get('v'))
+				q.set('theme', document.documentElement.getAttribute('data-theme') || 'light')
+				if (refName) q.set('reference_name', refName)
+				q.set('view', view.value)
+				q.set('date', dateInput(cursor.value))
+				window.open(location.pathname + '?' + q.toString(), '_blank')
+			}
 
 			function onKey(e) {
-				if (e.key !== 'Escape') return
+				if (e.key !== 'Escape' || e.defaultPrevented) return
+				if (document.querySelector('.pick-pop')) return // a dropdown inside the page closes first
 				if (editor.value) return closeEditor()
 				if (selected.value) return (selected.value = null)
 				tellParent('close')

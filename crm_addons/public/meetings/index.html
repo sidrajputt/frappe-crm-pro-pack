@@ -13,6 +13,7 @@
 		// file can never be served from an older cache than the others.
 		(function () {
 			var v = new URLSearchParams(location.search).get('v') || Date.now()
+			document.write('<script src="../debug.js?v=' + v + '"><\/script>')
 			document.write('<link rel="stylesheet" href="app.css?v=' + v + '">')
 			document.write('<script src="vendor/vue.global.prod.js?v=' + v + '"><\/script>')
 			document.write('<script src="app.js?v=' + v + '"><\/script>')

@@ -7,22 +7,31 @@
 	// ------------------------------------------------------------------ environment
 	const params = new URLSearchParams(location.search)
 	const EMBED = params.get('embed') === '1'
-	const THEME_KEY = 'crm_addons_theme'
 	const RANGE_KEY = 'crm_addons_dash_range'
 	const store = {
 		get(k) { try { return localStorage.getItem(k) } catch (e) { return null } },
 		set(k, v) { try { localStorage.setItem(k, v) } catch (e) { /* private mode */ } },
 	}
 
-	const theme = ref(params.get('theme') || store.get(THEME_KEY) || 'light')
+	// The theme belongs to the CRM, here as everywhere: ask the page that hosts or opened this one, then the
+	// 'theme' the CRM keeps in this browser (same origin), then the URL, then the browser. There is no switch of its own.
+	function crmTheme() {
+		for (const w of [window.parent !== window ? window.parent : null, window.opener]) {
+			try { const t = w && w.document.documentElement.getAttribute('data-theme'); if (t) return t } catch (e) { /* cross-origin */ }
+		}
+		const saved = store.get('theme')
+		return saved === 'dark' || saved === 'light' ? saved : null
+	}
 	function applyTheme() {
-		let t = theme.value
-		try {
-			if (EMBED && window.parent !== window) t = window.parent.document.documentElement.getAttribute('data-theme') || t
-		} catch (e) { /* cross-origin parent */ }
-		document.documentElement.setAttribute('data-theme', t)
+		const t = crmTheme() || params.get('theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+		const v = t === 'dark' ? 'dark' : 'light'
+		if (document.documentElement.getAttribute('data-theme') !== v) document.documentElement.setAttribute('data-theme', v)
 	}
 	applyTheme()
+	for (const w of [window.parent !== window ? window.parent : null, window.opener]) {
+		try { if (w) new MutationObserver(applyTheme).observe(w.document.documentElement, { attributes: true, attributeFilter: ['data-theme'] }) } catch (e) { /* not reachable */ }
+	}
+	window.addEventListener('storage', (e) => { if (e.key === 'theme') applyTheme() })
 	const tellParent = (type, extra) => { if (window.parent !== window) window.parent.postMessage({ source: 'crm-addons', type, ...(extra || {}) }, location.origin) }
 
 	let csrf = null
@@ -86,6 +95,8 @@
 		right: '<path d="m9 18 6-6-6-6"/>',
 		back: '<path d="M19 12H5M12 19l-7-7 7-7"/>',
 		user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+		send: '<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>',
+		plus: '<path d="M12 5v14M5 12h14"/>',
 	}
 	const Ico = {
 		props: { name: String, size: String },
@@ -208,104 +219,20 @@
 	}
 	const rangeOf = (r) => (r.preset === 'custom' && r.from && r.to ? [parseDay(r.from), parseDay(r.to)] : presetRange(r.preset === 'custom' ? '7d' : r.preset))
 
-	const RangePicker = {
-		components: { Ico },
-		props: { modelValue: Object },
-		emits: ['update:modelValue'],
-		setup(props, { emit }) {
-			const open = ref(false)
-			const btn = ref(null)
-			const pop = ref(null)
-			const style = ref({})
-			const cursor = ref(new Date())
-			const draft = reactive({ from: '', to: '' })
-			const hover = ref('')
+	// the picker itself is shared with the other page: range-picker.js
+	const RangePicker = window.CRMRangePicker.create({
+		Vue, Ico, presets: PRESETS, presetRange, rangeOf, fmtRange,
+		anyLabel: 'Any time', duePrefix: '', compare: true,
+	})
 
-			const current = computed(() => rangeOf(props.modelValue))
-			const label = computed(() => {
-				const preset = PRESETS.find((p) => p[0] === props.modelValue.preset)
-				return (preset ? preset[1] + '  ·  ' : '') + fmtRange(current.value[0], current.value[1])
-			})
-			function show() {
-				const r = btn.value.getBoundingClientRect()
-				style.value = { left: Math.max(8, Math.min(r.left, window.innerWidth - 548)) + 'px', top: r.bottom + 6 + 'px' }
-				draft.from = ymd(current.value[0])
-				draft.to = ymd(current.value[1])
-				cursor.value = new Date(current.value[1].getFullYear(), current.value[1].getMonth(), 1)
-				open.value = true
-			}
-			function choosePreset(key) {
-				const [a, b] = presetRange(key)
-				emit('update:modelValue', { preset: key, from: ymd(a), to: ymd(b) })
-				open.value = false
-			}
-			function apply() {
-				if (!draft.from) return
-				let [from, to] = [draft.from, draft.to || draft.from]
-				if (to < from) [from, to] = [to, from]
-				emit('update:modelValue', { preset: 'custom', from, to })
-				open.value = false
-			}
-			const monthTitle = computed(() => cursor.value.toLocaleDateString([], { month: 'long', year: 'numeric' }))
-			const step = (n) => { cursor.value = new Date(cursor.value.getFullYear(), cursor.value.getMonth() + n, 1) }
-			const cells = computed(() => {
-				const y = cursor.value.getFullYear(), m = cursor.value.getMonth()
-				const lead = (new Date(y, m, 1).getDay() + 6) % 7
-				const total = new Date(y, m + 1, 0).getDate()
-				const out = Array.from({ length: lead }, () => null)
-				for (let d = 1; d <= total; d++) out.push(new Date(y, m, d))
-				return out
-			})
-			const bounds = computed(() => {
-				const a = draft.from, b = draft.to || (hover.value && draft.from ? hover.value : '')
-				return a && b ? (a <= b ? [a, b] : [b, a]) : [a, a]
-			})
-			function pickDay(d) {
-				const s = ymd(d)
-				if (!draft.from || draft.to) { draft.from = s; draft.to = '' } else if (s < draft.from) { draft.to = draft.from; draft.from = s } else draft.to = s
-			}
-			const cls = (d) => {
-				const s = ymd(d), [lo, hi] = bounds.value
-				return { on: s === lo || s === hi, mid: s > lo && s < hi, today: s === ymd(new Date()) }
-			}
-			const onDoc = (e) => { if (open.value && !(pop.value && pop.value.contains(e.target)) && !btn.value.contains(e.target)) open.value = false }
-			onMounted(() => document.addEventListener('mousedown', onDoc))
-			onBeforeUnmount(() => document.removeEventListener('mousedown', onDoc))
-			return { open, btn, pop, style, label, show, choosePreset, apply, monthTitle, step, cells, pickDay, cls, draft, hover, PRESETS, ymdOf: ymd }
-		},
-		template: `
-<div class="pick">
-	<button type="button" class="pick-btn range" ref="btn" :class="{ open }" @click="open ? (open = false) : show()" aria-haspopup="dialog" :aria-expanded="open">
-		<ico name="calendar" class="lead" /><span class="pick-label">{{ label }}</span>
-		<svg class="ico chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-	</button>
-	<div class="pick-pop range-pop" ref="pop" v-if="open" :style="style" role="dialog" aria-label="Choose dates">
-		<div class="presets">
-			<button v-for="p in PRESETS" :key="p[0]" type="button" class="pick-opt" :class="{ on: modelValue.preset === p[0] }" @click="choosePreset(p[0])"><span class="pick-label">{{ p[1] }}</span></button>
-		</div>
-		<div class="cal">
-			<div class="cal-head"><button type="button" class="btn ghost icon" @click="step(-1)" aria-label="Previous month"><ico name="left" /></button><b>{{ monthTitle }}</b><button type="button" class="btn ghost icon" @click="step(1)" aria-label="Next month"><ico name="right" /></button></div>
-			<div class="cal-grid dow"><span v-for="(d, i) in ['M','T','W','T','F','S','S']" :key="i">{{ d }}</span></div>
-			<div class="cal-grid" @mouseleave="hover = ''">
-				<template v-for="(d, i) in cells" :key="i">
-					<span v-if="!d"></span>
-					<button v-else type="button" class="day" :class="cls(d)" @click="pickDay(d)" @mouseenter="hover = ymdOf(d)">{{ d.getDate() }}</button>
-				</template>
-			</div>
-			<div class="cal-foot">
-				<input class="control" type="date" v-model="draft.from" aria-label="From" /><span class="sub">to</span><input class="control" type="date" v-model="draft.to" aria-label="To" />
-				<button type="button" class="btn primary" :disabled="!draft.from" @click="apply">Apply</button>
-			</div>
-		</div>
-	</div>
-</div>`,
-	}
 	// ------------------------------------------------------------------ charts
 	function niceMax(v) {
 		if (v <= 4) return 4
-		const p = Math.pow(10, Math.floor(Math.log10(v)))
-		for (const m of [1, 2, 2.5, 5, 10]) if (m * p >= v) return m * p
-		return 10 * p
+		// the axis has four steps: make each one a round whole number, so no two ticks read the same
+		const unit = Math.ceil(v / 4)
+		const p = Math.pow(10, Math.floor(Math.log10(unit)))
+		for (const m of [1, 2, 2.5, 3, 4, 5, 6, 8, 10]) if (Number.isInteger(m * p) && m * p >= unit) return m * p * 4
+		return 10 * p * 4
 	}
 
 	/** Bars, stacked when there is more than one series. series: [{ name, color, values }] */
@@ -387,14 +314,26 @@
 			const data = ref(null)
 			const loading = ref(false)
 			const fatal = ref('')
+			// the range: what the URL says (a new tab opened from the pop-up), else the last one used on this page
+			const validRange = (r) => !!(r && (PRESETS.some((p) => p[0] === r.preset) || (r.preset === 'custom' && /^\d{4}-\d{2}-\d{2}$/.test(r.from || '') && /^\d{4}-\d{2}-\d{2}$/.test(r.to || ''))))
 			const saved = (() => { try { return JSON.parse(store.get(RANGE_KEY) || 'null') } catch (e) { return null } })()
+			const fromUrl = { preset: params.get('range') || '', from: params.get('from') || '', to: params.get('to') || '' }
 			// a ref, because the picker replaces the whole value (v-model)
-			const range = ref(saved && saved.preset ? saved : { preset: '7d', from: '', to: '' })
-			const user = ref('')
+			const range = ref(validRange(fromUrl) ? fromUrl : validRange(saved) ? saved : { preset: '7d', from: '', to: '' })
+			const user = ref(params.get('user') || '')
 			const metric = ref('calls')
 			const split = ref('result')
 			const sort = reactive({ key: 'calls', dir: -1 })
 			const updatedAt = ref('')
+			// Lead Nurturing: campaign numbers, fetched only when that tab is opened
+			const config = ref(null)
+			const nurturingOn = computed(() => !!(config.value && config.value.campaigns_enabled))
+			const view = ref(location.hash === '#nurturing' ? 'nurturing' : 'sales')
+			const nur = ref(null)
+			const nurLoading = ref(false)
+			const nurError = ref('')
+			const funnelChannel = ref('all')
+			let nurKey = ''
 
 			onErrorCaptured((err) => { fatal.value = 'The dashboard could not be drawn (' + (err && err.message ? err.message : err) + '). Reload the page with Ctrl/Cmd+Shift+R.'; return false })
 
@@ -407,20 +346,57 @@
 					updatedAt.value = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 				} catch (e) { fatal.value = e.message } finally { loading.value = false }
 			}
-			watch([range, user], () => { store.set(RANGE_KEY, JSON.stringify(range.value)); load() })
+			async function loadNurturing(quiet) {
+				const [a, b] = rangeOf(range.value)
+				const key = [ymd(a), ymd(b), user.value].join('|')
+				if (!quiet) nurLoading.value = true
+				try {
+					nur.value = await call('crm_addons.dashboard.get_nurturing', { from_date: ymd(a), to_date: ymd(b), user: user.value || undefined })
+					nurKey = key
+					nurError.value = ''
+					updatedAt.value = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+				} catch (e) { nurError.value = e.message } finally { nurLoading.value = false }
+			}
+			function setView(v) {
+				if (v === 'nurturing' && !nurturingOn.value) v = 'sales'
+				view.value = v
+				try { history.replaceState(null, '', v === 'nurturing' ? '#nurturing' : location.pathname + location.search) } catch (e) { /* ignore */ }
+				const [a, b] = rangeOf(range.value)
+				if (v === 'nurturing' && (!nur.value || nurKey !== [ymd(a), ymd(b), user.value].join('|'))) loadNurturing()
+			}
+			const refresh = (quiet) => (view.value === 'nurturing' ? loadNurturing(quiet) : load(quiet))
+			watch([range, user], () => { store.set(RANGE_KEY, JSON.stringify(range.value)); load(); if (view.value === 'nurturing') loadNurturing() })
 
 			let timer
+			const onHash = () => setView(location.hash === '#nurturing' ? 'nurturing' : 'sales')
 			onMounted(() => {
 				load()
-				timer = setInterval(() => document.visibilityState === 'visible' && load(true), 120000)
-				document.addEventListener('keydown', (e) => e.key === 'Escape' && EMBED && tellParent('close'))
+				call('crm_addons.api.get_client_config').then((c) => {
+					config.value = c
+					if (view.value === 'nurturing') { if (c.campaigns_enabled) loadNurturing(); else view.value = 'sales' }
+				}).catch(() => { if (view.value === 'nurturing') view.value = 'sales' })
+				window.addEventListener('hashchange', onHash)
+				timer = setInterval(() => document.visibilityState === 'visible' && refresh(true), 120000)
+				document.addEventListener('keydown', onEsc)
 			})
-			onBeforeUnmount(() => clearInterval(timer))
+			onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('keydown', onEsc); window.removeEventListener('hashchange', onHash) })
 
-			function toggleTheme() {
-				theme.value = theme.value === 'dark' ? 'light' : 'dark'
-				store.set(THEME_KEY, theme.value)
-				applyTheme()
+			// Esc closes the pop-up, but only when nothing inside the page (a dropdown, the date picker) is open:
+			// those close themselves first and stop the key
+			function onEsc(e) {
+				if (e.key !== 'Escape' || !EMBED || e.defaultPrevented) return
+				if (document.querySelector('.pick-pop')) return
+				tellParent('close')
+			}
+			// "Open in a new tab": the same tab, range and person, without the pop-up frame; the CRM's theme goes along
+			function openFull() {
+				const q = new URLSearchParams()
+				if (params.get('v')) q.set('v', params.get('v'))
+				q.set('theme', document.documentElement.getAttribute('data-theme') || 'light')
+				q.set('range', range.value.preset)
+				if (range.value.preset === 'custom') { q.set('from', range.value.from); q.set('to', range.value.to) }
+				if (user.value) q.set('user', user.value)
+				window.open(location.pathname + '?' + q.toString() + (view.value === 'nurturing' ? '#nurturing' : ''), '_blank')
 			}
 
 			// ---------- who and when
@@ -556,38 +532,221 @@
 			const mixRows = computed(() => (data.value ? data.value.people.filter((p) => p.calls > 0).slice(0, 12).map((p) => ({ name: p.full_name, total: p.calls, parts: Object.keys(OUTCOME_COLORS).filter((k) => p.outcomes[k]).map((k) => ({ key: k, n: p.outcomes[k], color: OUTCOME_COLORS[k] })) })) : []))
 			const mixMax = computed(() => Math.max(1, ...mixRows.value.map((r) => r.total)))
 
+			// ---------- lead nurturing (campaigns)
+			const NUR = { Email: '#2563eb', WhatsApp: '#16a34a' }
+			const CAMPAIGN_COLORS = { Running: '#2563eb', Queued: '#0891b2', Scheduled: '#7c3aed', Paused: '#f59e0b', Completed: '#16a34a', Draft: '#94a3b8', Cancelled: '#64748b', Failed: '#dc2626' }
+			const rate = (v) => (v === null || v === undefined ? '-' : v + '%')
+			const nDelta = (cur, prev, points, invert) => {
+				if (cur === null || cur === undefined || prev === null || prev === undefined) return null
+				const d = delta(cur, prev, points)
+				return d && invert ? { ...d, up: !d.up, bad: true } : d
+			}
+			const emailSent = computed(() => (nur.value ? nur.value.channels.Email.sent : 0))
+			const emailOpensKnown = computed(() => !!nur.value && (nur.value.tracking.email_open || nur.value.channels.Email.read > 0))
+			const nurCards = computed(() => {
+				if (!nur.value) return []
+				const t = nur.value.totals, p = nur.value.previous
+				return [
+					{ label: 'Campaigns', value: num(t.campaigns), sub: 'created, started or sent in this period', delta: nDelta(t.campaigns, p.campaigns), tone: 'blue' },
+					{ label: 'Recipients reached', value: num(t.reached), sub: `${num(t.sent)} messages sent`, delta: nDelta(t.reached, p.reached) },
+					{ label: 'Delivered rate', value: rate(t.delivered_rate), sub: nur.value.channels.WhatsApp.sent ? `${num(t.delivered)} WhatsApp messages delivered` : 'Reported for WhatsApp only', delta: nDelta(t.delivered_rate, p.delivered_rate, true) },
+					{ label: 'Read / open rate', value: rate(t.read_rate), sub: emailSent.value && !emailOpensKnown.value ? 'Email opens need open tracking' : `${num(t.read)} read or opened`, delta: nDelta(t.read_rate, p.read_rate, true) },
+					{ label: 'Reply rate', value: rate(t.reply_rate), sub: `${num(t.replied)} ${t.replied === 1 ? 'lead' : 'leads'} wrote back within 14 days` },
+					{ label: 'Failed', value: num(t.failed), sub: t.sent ? `${pct(t.failed, t.sent + t.failed)}% of attempts` : 'No sends yet', subTone: t.failed ? 'bad' : '', delta: nDelta(t.failed, p.failed, false, true) },
+					{ label: 'Opt-outs', value: num(t.optouts), sub: 'unsubscribed or replied STOP' },
+				]
+			})
+			const nurDayLabels = computed(() => (nur.value ? nur.value.by_day.map((d) => (nur.value.by_day.length <= 7 ? parseDay(d.date).toLocaleDateString([], { weekday: 'short', day: 'numeric' }) : fmtDate(parseDay(d.date)))) : []))
+			const nurSeries = computed(() => (nur.value ? ['Email', 'WhatsApp'].map((c) => ({ name: c, color: NUR[c], values: nur.value.by_day.map((d) => d[c]) })) : []))
+			const nurTotalSent = computed(() => (nur.value ? nur.value.totals.sent : 0))
+			const nurFunnel = computed(() => {
+				if (!nur.value) return []
+				const ch = nur.value.channels, t = nur.value.totals, sel = funnelChannel.value
+				const wa = ch.WhatsApp, em = ch.Email
+				let sent, delivered, read, replied, readBase, deliveredBase
+				if (sel === 'all') {
+					sent = t.sent; delivered = wa.delivered; deliveredBase = wa.sent; read = t.read
+					readBase = wa.sent + (emailOpensKnown.value ? em.sent : 0); replied = t.replied
+				} else {
+					const c = ch[sel]
+					sent = c.sent; delivered = sel === 'WhatsApp' ? c.delivered : null; deliveredBase = c.sent
+					read = sel === 'Email' && !emailOpensKnown.value ? null : c.read; readBase = c.sent; replied = c.replied
+				}
+				const top = Math.max(1, sent)
+				const stages = [
+					{ stage: 'Sent', count: sent, base: null },
+					{ stage: sel === 'all' ? 'Delivered (WhatsApp)' : 'Delivered', count: delivered, base: deliveredBase, of: sel === 'all' ? 'of WhatsApp sent' : 'of sent', why: 'Email delivery is not reported' },
+					{ stage: sel === 'Email' ? 'Opened' : 'Read / opened', count: read, base: readBase, of: sel === 'all' ? 'of sends that report reads' : 'of sent', why: 'Email opens need open tracking' },
+					{ stage: 'Replied', count: replied, base: sel === 'all' ? t.reached : sel === 'Email' ? em.reached : wa.reached, of: 'of people reached', why: '' },
+				]
+				return stages.map((s) => ({ ...s, width: s.count === null ? 0 : Math.max(s.count ? 2 : 0, (s.count / top) * 100), rate: s.count === null || s.base === null ? null : pct(s.count, s.base) }))
+			})
+			const chanRows = computed(() => {
+				if (!nur.value) return []
+				return ['Email', 'WhatsApp'].map((name) => {
+					const c = nur.value.channels[name]
+					const hasDelivery = name === 'WhatsApp'
+					const hasRead = name === 'WhatsApp' || emailOpensKnown.value
+					return {
+						name, color: NUR[name], sent: c.sent, reached: c.reached, failed: c.failed, replied: c.replied,
+						delivered: hasDelivery ? c.delivered : null, read: hasRead ? c.read : null,
+						deliveredRate: hasDelivery && c.sent ? pct(c.delivered, c.sent) : null, readRate: hasRead && c.sent ? pct(c.read, c.sent) : null,
+						replyRate: c.reached ? pct(c.replied, c.reached) : null, failRate: c.sent + c.failed ? pct(c.failed, c.sent + c.failed) : null,
+					}
+				})
+			})
+			const chanMax = computed(() => Math.max(1, ...chanRows.value.map((r) => r.sent)))
+			const statusDonut = computed(() => (nur.value ? nur.value.status_counts.map((s) => ({ label: s.status, value: s.count, color: CAMPAIGN_COLORS[s.status] || '#94a3b8' })) : []))
+			const nurturedItems = computed(() => {
+				if (!nur.value) return []
+				const n = nur.value.nurtured
+				return [{ label: 'Nurtured', value: n.nurtured, color: '#2563eb' }, { label: 'Not nurtured', value: n.not_nurtured, color: '#94a3b8' }]
+			})
+			const campaignUrl = (hash) => '/assets/crm_addons/campaigns/index.html' + (params.get('v') ? '?v=' + encodeURIComponent(params.get('v')) : '') + (hash || '')
+			const pct1 = (v, total) => (total && (v / total) * 100 < 1 && v ? Math.max(0.1, Math.round((v / total) * 1000) / 10) : pct(v, total))
+			const nurNoCampaigns = computed(() => !!nur.value && !nur.value.has_campaigns)
+			const nurQuiet = computed(() => !!nur.value && nur.value.has_campaigns && !nur.value.totals.sent && !nur.value.totals.campaigns)
+			const nurRateTone = (r) => (r === null ? '' : r >= 50 ? 'good' : r >= 20 ? 'mid' : 'bad')
+
 			// ---------- links
-			const open = (url) => { if (url) location.href = url }
+			// inside the pop-up a lead / meeting link must move the CRM tab, not the frame
+			const open = (url) => { if (!url) return; if (EMBED && window.parent !== window) tellParent('navigate', { url }); else location.href = url }
 			const outcomeTone = (o) => ({ 'Did Not Pick': 'red', 'Did Not Connect': 'amber', Interested: 'green', 'Meeting Scheduled': 'green', 'Not Interested': 'red', 'Ask for Detail': 'blue', 'Call Back Later': 'amber' }[o] || '')
 			const close = () => tellParent('close')
 
 			return {
-				EMBED, theme, toggleTheme, data, loading, fatal, range, user, userOptions, subtitle, updatedAt, exportItems, exportFile, metric, split, splitOptions, scope, isManager, everyone, cards,
+				EMBED, openFull, data, loading, fatal, range, user, userOptions, subtitle, updatedAt, exportItems, exportFile, metric, split, splitOptions, scope, isManager, everyone, cards,
 				dayLabels, seriesData, chartTotal, outcomeItems, outcomeTotal, pct, funnel, hourLabels, hourSeries, bestHour, attemptLabels, attemptSeries, statusRows, statusMax, statusTotal, sourceRows, sourceMax,
-				bandItems, meetingItems, meetingTotal, showTeam, people, maxCalls, columns, sort, sortBy, rateTone, mixRows, mixMax, load, open, close, fmtWhen, outcomeTone, num, OUTCOME_COLORS,
+				bandItems, meetingItems, meetingTotal, view, setView, nurturingOn, nur, nurLoading, nurError, refresh, funnelChannel, nurCards, nurDayLabels, nurSeries, nurTotalSent, nurFunnel, chanRows, chanMax, statusDonut, nurturedItems, campaignUrl, pct1, nurNoCampaigns, nurQuiet, nurRateTone, NUR, loadNurturing, showTeam, people, maxCalls, columns, sort, sortBy, rateTone, mixRows, mixMax, load, open, close, fmtWhen, outcomeTone, num, OUTCOME_COLORS,
 			}
 		},
 		template: `
 <div class="dash">
-	<div class="progress" v-if="loading"></div>
+	<div class="progress" v-if="loading || nurLoading"></div>
 	<header class="dash-bar">
 		<div class="dash-brand"><span class="brand-ico"><ico name="chart" size="lg" /></span><div><h1>Sales Dashboard</h1><div class="sub">{{ subtitle }}</div></div></div>
+		<div class="seg dash-tabs" role="tablist" aria-label="Dashboard" v-if="nurturingOn">
+			<button role="tab" :aria-selected="view === 'sales'" :class="{ on: view === 'sales' }" @click="setView('sales')">Sales</button>
+			<button role="tab" :aria-selected="view === 'nurturing'" :class="{ on: view === 'nurturing' }" @click="setView('nurturing')">Lead Nurturing</button>
+		</div>
 		<div class="dash-controls">
 			<range-picker v-model="range" />
 			<div class="user-pick" v-if="isManager"><pick v-model="user" :options="userOptions" placeholder="Everyone" icon="user" /></div>
 		</div>
 		<span class="spacer"></span>
 		<span class="sub updated" v-if="updatedAt">Updated {{ updatedAt }}</span>
-		<button class="btn ghost icon" @click="load()" title="Refresh" aria-label="Refresh"><ico name="refresh" size="lg" /></button>
-		<v-menu label="Export" icon="download" :items="exportItems" @select="exportFile" />
-		<button class="btn ghost icon" @click="toggleTheme" :title="theme === 'dark' ? 'Light theme' : 'Dark theme'" aria-label="Switch theme"><ico :name="theme === 'dark' ? 'sun' : 'moon'" size="lg" /></button>
+		<button class="btn ghost icon" @click="refresh()" :title="updatedAt ? 'Refresh (updated ' + updatedAt + ')' : 'Refresh'" aria-label="Refresh"><ico name="refresh" size="lg" /></button>
+		<v-menu v-if="view === 'sales'" label="Export" icon="download" :items="exportItems" @select="exportFile" />
 		<a class="btn" href="/crm" v-if="!EMBED"><ico name="back" /> CRM</a>
+		<button class="btn ghost icon" v-if="EMBED" @click="openFull" title="Open in a new tab" aria-label="Open in a new tab"><ico name="external" size="lg" /></button>
 		<button class="btn ghost icon" v-if="EMBED" @click="close" title="Close (Esc)" aria-label="Close"><ico name="x" size="lg" /></button>
 	</header>
 
-	<div class="banner error" v-if="fatal" style="margin:16px 24px 0">{{ fatal }}</div>
+	<div class="banner error" v-if="view === 'sales' && fatal" style="margin:16px 24px 0">{{ fatal }}</div>
+	<div class="banner error" v-if="view === 'nurturing' && nurError" style="margin:16px 24px 0">{{ nurError }}</div>
 
-	<main class="dash-body" v-if="data">
+	<main class="dash-body" v-if="view === 'nurturing'">
+		<template v-if="nur">
+			<section class="panel nur-empty" v-if="nurNoCampaigns">
+				<span class="big"><ico name="send" /></span>
+				<h3>No campaigns yet</h3>
+				<p>Lead Nurturing shows how your email and WhatsApp campaigns perform: who was reached, what was delivered, read and answered. Create your first campaign to start nurturing leads.</p>
+				<a class="btn primary" :href="campaignUrl('#/new')" target="_blank" rel="noopener"><ico name="plus" /> Create campaign</a>
+			</section>
+			<template v-else>
+				<section class="kpis nur-kpis">
+					<div class="kpi" v-for="c in nurCards" :key="c.label" :class="c.tone">
+						<div class="kpi-label">{{ c.label }}</div>
+						<div class="kpi-value">{{ c.value }}<span class="delta" v-if="c.delta" :class="c.delta.up ? 'up' : 'down'">{{ c.delta.up ? '▲' : '▼' }} {{ c.delta.text }}</span></div>
+						<div class="kpi-sub" :class="c.subTone">{{ c.sub }}</div>
+					</div>
+				</section>
+				<div class="banner nur-note" v-if="nurQuiet">No campaign was created or sent in this period. Pick a longer date range, or <a :href="campaignUrl('#/new')" target="_blank" rel="noopener">create a campaign</a>.</div>
+
+				<div class="grid two-one">
+					<section class="panel">
+						<header><div><h3>Messages sent by day</h3><div class="sub">{{ num(nurTotalSent) }} sent in this period</div></div><a class="btn small" :href="campaignUrl('')" target="_blank" rel="noopener"><ico name="external" /> Campaign Manager</a></header>
+						<bar-chart :labels="nurDayLabels" :series="nurSeries" />
+						<div class="legend"><span v-for="s in nurSeries" :key="s.name"><i :style="{ background: s.color }"></i>{{ s.name }}</span></div>
+					</section>
+					<section class="panel">
+						<header><div><h3>Campaign status</h3><div class="sub">{{ num(nur.totals.campaigns) }} in this period</div></div></header>
+						<div class="donut-row" v-if="statusDonut.length">
+							<donut :items="statusDonut" centre="campaigns" />
+							<ul class="key"><li v-for="o in statusDonut" :key="o.label"><i :style="{ background: o.color }"></i><span class="k">{{ o.label }}</span><b>{{ o.value }}</b></li></ul>
+						</div>
+						<div class="chart-empty" v-else>No campaigns in this period</div>
+					</section>
+				</div>
+
+				<div class="grid two">
+					<section class="panel">
+						<header>
+							<div><h3>Engagement funnel</h3><div class="sub">Sent, delivered, read and replied</div></div>
+							<div class="seg"><button :class="{ on: funnelChannel === 'all' }" @click="funnelChannel = 'all'">All</button><button :class="{ on: funnelChannel === 'Email' }" @click="funnelChannel = 'Email'">Email</button><button :class="{ on: funnelChannel === 'WhatsApp' }" @click="funnelChannel = 'WhatsApp'">WhatsApp</button></div>
+						</header>
+						<div class="funnel">
+							<div class="frow" v-for="(s, i) in nurFunnel" :key="s.stage">
+								<div class="fhead"><span>{{ s.stage }}</span><span v-if="s.count !== null"><b>{{ num(s.count) }}</b><span class="sub" v-if="s.rate !== null"> · {{ s.rate }}% {{ s.of }}</span></span><span class="sub" v-else>{{ s.why }}</span></div>
+								<div class="ftrack"><i :style="{ width: s.width + '%', opacity: 1 - i * 0.14 }"></i></div>
+							</div>
+						</div>
+					</section>
+					<section class="panel">
+						<header><div><h3>Email vs WhatsApp</h3><div class="sub">What each channel delivered in this period</div></div></header>
+						<div class="table-wrap">
+							<table class="team plain nur-chan">
+								<thead><tr><th class="l">Channel</th><th>Sent</th><th>Reached</th><th>Delivered</th><th>Read / opened</th><th>Replied</th><th>Failed</th></tr></thead>
+								<tbody><tr v-for="r in chanRows" :key="r.name">
+									<td class="l"><span class="who"><i class="dot" :style="{ background: r.color }"></i>{{ r.name }}</span></td>
+									<td><b>{{ num(r.sent) }}</b><div class="mini"><i :style="{ width: (r.sent / chanMax) * 100 + '%', background: r.color }"></i></div></td>
+									<td>{{ num(r.reached) }}</td>
+									<td><template v-if="r.delivered !== null">{{ num(r.delivered) }} <span class="pill-rate" :class="nurRateTone(r.deliveredRate)">{{ r.deliveredRate === null ? '-' : r.deliveredRate + '%' }}</span></template><span class="sub" v-else>n/a</span></td>
+									<td><template v-if="r.read !== null">{{ num(r.read) }} <span class="pill-rate" :class="nurRateTone(r.readRate)">{{ r.readRate === null ? '-' : r.readRate + '%' }}</span></template><span class="sub" v-else>n/a</span></td>
+									<td>{{ num(r.replied) }} <span class="pill-rate" :class="nurRateTone(r.replyRate)">{{ r.replyRate === null ? '-' : r.replyRate + '%' }}</span></td>
+									<td :class="{ late: r.failed }">{{ num(r.failed) }}</td>
+								</tr></tbody>
+							</table>
+						</div>
+						<div class="sub nur-foot">Delivery is reported for WhatsApp only. Email opens are shown when open tracking is on for the outgoing email account.</div>
+					</section>
+				</div>
+
+				<div class="grid two-one">
+					<section class="panel">
+						<header><div><h3>Top campaigns</h3><div class="sub">Most messages sent in this period. Click one to open it in the Campaign Manager.</div></div></header>
+						<div class="table-wrap" v-if="nur.top_campaigns.length">
+							<table class="team plain nur-top">
+								<thead><tr><th class="l">Campaign</th><th class="l">Status</th><th>Sent</th><th>Delivered</th><th>Read</th><th>Replied</th><th>Failed</th></tr></thead>
+								<tbody><tr v-for="c in nur.top_campaigns" :key="c.name">
+									<td class="l"><a class="camp-link" :href="campaignUrl('#/c/' + encodeURIComponent(c.name))" target="_blank" rel="noopener">{{ c.campaign_name }}</a><div class="sub">{{ [c.email ? c.email + ' email' : '', c.whatsapp ? c.whatsapp + ' WhatsApp' : ''].filter(Boolean).join(' · ') }}</div></td>
+									<td class="l"><span class="chip" :style="{ background: 'color-mix(in srgb, ' + ({ Running: '#2563eb', Queued: '#0891b2', Scheduled: '#7c3aed', Paused: '#f59e0b', Completed: '#16a34a', Draft: '#94a3b8', Cancelled: '#64748b', Failed: '#dc2626' }[c.status] || '#94a3b8') + ' 16%, transparent)' }">{{ c.status }}</span></td>
+									<td><b>{{ num(c.sent) }}</b></td><td>{{ num(c.delivered) }}</td><td>{{ num(c.read) }}</td>
+									<td>{{ num(c.replied) }} <span class="pill-rate" :class="nurRateTone(c.reply_rate)" v-if="c.reply_rate !== null">{{ c.reply_rate }}%</span></td>
+									<td :class="{ late: c.failed }">{{ num(c.failed) }}</td>
+								</tr></tbody>
+							</table>
+						</div>
+						<div class="chart-empty" v-else>No messages were sent in this period</div>
+					</section>
+					<section class="panel">
+						<header><div><h3>Leads nurtured</h3><div class="sub">Open leads that received a campaign message in this period</div></div></header>
+						<div class="donut-row" v-if="nur.nurtured.open_leads">
+							<donut :items="nurturedItems" centre="open leads" :size="150" />
+							<ul class="key"><li v-for="o in nurturedItems" :key="o.label"><i :style="{ background: o.color }"></i><span class="k">{{ o.label }}</span><b>{{ num(o.value) }}</b><span class="sub">{{ pct1(o.value, nur.nurtured.open_leads) }}%</span></li></ul>
+						</div>
+						<div class="chart-empty" v-else>No open leads</div>
+					</section>
+				</div>
+			</template>
+		</template>
+		<template v-else-if="!nurError">
+			<section class="kpis"><div class="kpi skel" v-for="n in 7" :key="n"></div></section>
+			<div class="grid two-one"><section class="panel skel tall"></section><section class="panel skel tall"></section></div>
+		</template>
+	</main>
+
+	<main class="dash-body" v-else-if="data">
 		<section class="kpis">
 			<div class="kpi" v-for="c in cards" :key="c.label" :class="c.tone">
 				<div class="kpi-label">{{ c.label }}</div>

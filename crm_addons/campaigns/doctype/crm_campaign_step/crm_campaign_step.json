@@ -1,0 +1,103 @@
+{
+ "actions": [],
+ "creation": "2026-10-06 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "channel",
+  "day_offset",
+  "email_template",
+  "wa_template",
+  "wa_account",
+  "variable_map",
+  "wa_attach",
+  "condition",
+  "attachments",
+  "paused"
+ ],
+ "fields": [
+  {
+   "fieldname": "channel",
+   "fieldtype": "Select",
+   "label": "Channel",
+   "options": "Email\nWhatsApp",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "day_offset",
+   "fieldtype": "Int",
+   "label": "Send on day",
+   "default": "0",
+   "in_list_view": 1,
+   "description": "Days after the campaign starts. 0 = right away, 2 = two days later."
+  },
+  {
+   "fieldname": "email_template",
+   "fieldtype": "Link",
+   "label": "Email Template",
+   "options": "CRM Campaign Email Template",
+   "depends_on": "eval:doc.channel=='Email'"
+  },
+  {
+   "fieldname": "wa_template",
+   "fieldtype": "Data",
+   "label": "WhatsApp Template",
+   "depends_on": "eval:doc.channel=='WhatsApp'"
+  },
+  {
+   "fieldname": "wa_account",
+   "fieldtype": "Data",
+   "label": "WhatsApp Account",
+   "depends_on": "eval:doc.channel=='WhatsApp'",
+   "description": "Leave empty to use the default outgoing account."
+  },
+  {
+   "fieldname": "variable_map",
+   "fieldtype": "Code",
+   "label": "Variable Mapping",
+   "options": "JSON",
+   "description": "WhatsApp: {\"1\": \"{{ first_name }}\", \"2\": \"{{ owner_name }}\"}"
+  },
+  {
+   "fieldname": "wa_attach",
+   "fieldtype": "Attach",
+   "label": "Header Media"
+  },
+  {
+   "fieldname": "condition",
+   "fieldtype": "Select",
+   "label": "Send only if",
+   "hidden": 0,
+   "description": "Checked for each lead when the step is due. Empty = always send.",
+   "options": "\nPrevious step was sent\nPrevious step was read or opened\nPrevious step was not read or opened\nPrevious step failed or was skipped",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "attachments",
+   "fieldtype": "Code",
+   "options": "JSON",
+   "label": "Attachments",
+   "description": "Email: list of attached file URLs sent with this step (in addition to files attached to the template)."
+  },
+  {
+   "fieldname": "paused",
+   "fieldtype": "Check",
+   "label": "Paused",
+   "default": "0",
+   "description": "A paused step sends nothing until it is resumed."
+  }
+ ],
+ "modified": "2026-10-06 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Campaigns",
+ "name": "CRM Campaign Step",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 1
+}

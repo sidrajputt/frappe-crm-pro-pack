@@ -6,7 +6,7 @@ sales users (so they only see their own numbers) and ``None`` for managers.
 
 import frappe
 from frappe import _
-from frappe.utils import add_days, date_diff, get_first_day, get_last_day, getdate, nowdate
+from frappe.utils import add_days, cint, date_diff, get_first_day, get_last_day, getdate, nowdate
 
 
 def _scope(user):
@@ -61,7 +61,7 @@ def get_upcoming_meetings_week(from_date=None, to_date=None, user=None):
 
 
 def get_meetings_in_period(from_date=None, to_date=None, user=None):
-	span = max(date_diff(to_date, from_date), 1)
+	span = date_diff(to_date, from_date) + 1  # days in the range, both ends included: the previous period is as long
 	current = _count(from_date, to_date, user)
 	previous = _count(add_days(from_date, -span), add_days(from_date, -1), user)
 	return {
@@ -173,7 +173,7 @@ def _calls(from_date, to_date, user):
 
 
 def get_call_connect_rate(from_date=None, to_date=None, user=None):
-	span = max(date_diff(to_date, from_date), 1)
+	span = date_diff(to_date, from_date) + 1  # days in the range, both ends included: the previous period is as long
 	total, connected, _avg = _calls(from_date, to_date, user)
 	p_total, p_connected, _p_avg = _calls(add_days(from_date, -span), add_days(from_date, -1), user)
 	rate = connected / total * 100 if total else 0
@@ -188,7 +188,7 @@ def get_call_connect_rate(from_date=None, to_date=None, user=None):
 
 
 def get_attempts_to_connect(from_date=None, to_date=None, user=None):
-	span = max(date_diff(to_date, from_date), 1)
+	span = date_diff(to_date, from_date) + 1  # days in the range, both ends included: the previous period is as long
 	_t, _c, avg = _calls(from_date, to_date, user)
 	_pt, _pc, previous = _calls(add_days(from_date, -span), add_days(from_date, -1), user)
 	return {
@@ -414,3 +414,280 @@ def get_dashboard(from_date=None, to_date=None, user=None):
 					message=frappe.get_traceback(),
 				)
 	return layout
+
+
+# -- Lead Nurturing: campaign numbers for the Sales Dashboard -------------------------------------------------
+
+NURTURE_ROLES = ("Sales User", "Sales Manager", "System Manager")
+NURTURE_CHANNELS = ("Email", "WhatsApp")
+NURTURE_SENT = ("Sent", "Delivered", "Read")
+REPLY_WINDOW_DAYS = 14
+
+
+def _nurture_period(from_date, to_date):
+	start = getdate(from_date or add_days(nowdate(), -29))
+	end = getdate(to_date or nowdate())
+	if end < start:
+		start, end = end, start
+	if date_diff(end, start) > 366:
+		start = add_days(end, -366)
+	return start, end
+
+
+def _nurture_who(user):
+	"""The one user whose campaigns to count, or None for every campaign (managers only)."""
+	from crm_addons.utils import is_manager
+
+	if not is_manager():
+		return frappe.session.user
+	return user or None
+
+
+def _nurture_scope(who):
+	"""Same rule as crm_addons.campaigns.permissions: you own the campaign or you run it."""
+	if not who:
+		return "", {}
+	return " and (c.owner = %(who)s or c.campaign_owner = %(who)s)", {"who": who}
+
+
+def _replied_sql():
+	"""SQL that is true for a recipient whose lead wrote back (WhatsApp or email) soon after the send."""
+	parts = []
+	if frappe.db.exists("DocType", "WhatsApp Message"):
+		parts.append(
+			"exists (select 1 from `tabWhatsApp Message` w where w.type = 'Incoming' and w.reference_doctype = 'CRM Lead' "
+			"and w.reference_name = rp.recipient_id and w.creation > rp.sent_at "
+			f"and w.creation <= date_add(rp.sent_at, interval {REPLY_WINDOW_DAYS} day))"
+		)
+	parts.append(
+		"exists (select 1 from `tabCommunication` cm where cm.reference_doctype = 'CRM Lead' "
+		"and cm.reference_name = rp.recipient_id and cm.sent_or_received = 'Received' and cm.communication_type = 'Communication' "
+		f"and cm.creation > rp.sent_at and cm.creation <= date_add(rp.sent_at, interval {REPLY_WINDOW_DAYS} day))"
+	)
+	return "(" + " or ".join(parts) + ")"
+
+
+def _nurture_numbers(start, end, who, replies=True):
+	"""Everything that is summed over [start, end]: sends per day and channel, delivery states, failures,
+	people reached and (optionally) people who replied."""
+	scope, params = _nurture_scope(who)
+	params.update({"s": start, "e": add_days(end, 1)})
+	sent_where = (
+		"from `tabCRM Campaign Recipient` rp join `tabCRM Campaign` c on c.name = rp.campaign "
+		"where rp.sent_at >= %(s)s and rp.sent_at < %(e)s and rp.status in ('Sent', 'Delivered', 'Read')" + scope
+	)
+
+	rows = frappe.db.sql(
+		f"select rp.channel, rp.status, date(rp.sent_at) as day, count(*) as n {sent_where} group by rp.channel, rp.status, day",
+		params,
+		as_dict=True,
+	)
+	by_channel = {c: {"sent": 0, "delivered": 0, "read": 0, "failed": 0, "reached": 0, "replied": 0} for c in NURTURE_CHANNELS}
+	by_day = {}
+	for r in rows:
+		if r.channel not in by_channel:
+			continue
+		ch = by_channel[r.channel]
+		ch["sent"] += r.n
+		ch["delivered"] += r.n if r.status in ("Delivered", "Read") else 0
+		ch["read"] += r.n if r.status == "Read" else 0
+		day = by_day.setdefault(str(r.day), {c: 0 for c in NURTURE_CHANNELS})
+		day[r.channel] += r.n
+
+	for r in frappe.db.sql(f"select rp.channel, count(distinct rp.recipient_id) as n {sent_where} group by rp.channel", params, as_dict=True):
+		if r.channel in by_channel:
+			by_channel[r.channel]["reached"] = r.n
+	reached = frappe.db.sql(f"select count(distinct rp.recipient_id) {sent_where}", params)[0][0] or 0
+
+	for r in frappe.db.sql(
+		"select rp.channel, count(*) as n from `tabCRM Campaign Recipient` rp join `tabCRM Campaign` c on c.name = rp.campaign "
+		"where rp.status = 'Failed' and rp.failed_at >= %(s)s and rp.failed_at < %(e)s" + scope + " group by rp.channel",
+		params,
+		as_dict=True,
+	):
+		if r.channel in by_channel:
+			by_channel[r.channel]["failed"] = r.n
+
+	replied, replied_by_campaign = 0, {}
+	if replies and reached:
+		cond = _replied_sql()
+		replied = frappe.db.sql(f"select count(distinct rp.recipient_id) {sent_where} and rp.recipient_type = 'CRM Lead' and {cond}", params)[0][0] or 0
+		for r in frappe.db.sql(
+			f"select rp.channel, count(distinct rp.recipient_id) as n {sent_where} and rp.recipient_type = 'CRM Lead' and {cond} group by rp.channel",
+			params,
+			as_dict=True,
+		):
+			if r.channel in by_channel:
+				by_channel[r.channel]["replied"] = r.n
+		replied_by_campaign = {
+			r.campaign: r.n
+			for r in frappe.db.sql(
+				f"select rp.campaign, count(distinct rp.recipient_id) as n {sent_where} and rp.recipient_type = 'CRM Lead' and {cond} group by rp.campaign",
+				params,
+				as_dict=True,
+			)
+		}
+	return {"channels": by_channel, "by_day": by_day, "reached": reached, "replied": replied, "replied_by_campaign": replied_by_campaign}
+
+
+def _rate(part, whole):
+	return round(part / whole * 100, 1) if whole else None
+
+
+def _nurture_totals(numbers, tracking, campaigns, optouts):
+	ch = numbers["channels"]
+	sent = sum(c["sent"] for c in ch.values())
+	delivered = ch["WhatsApp"]["delivered"]
+	read = ch["WhatsApp"]["read"] + (ch["Email"]["read"] if tracking or ch["Email"]["read"] else 0)
+	read_base = ch["WhatsApp"]["sent"] + (ch["Email"]["sent"] if tracking or ch["Email"]["read"] else 0)
+	return {
+		"campaigns": campaigns,
+		"reached": numbers["reached"],
+		"sent": sent,
+		"delivered": delivered,
+		"read": read,
+		"replied": numbers["replied"],
+		"failed": sum(c["failed"] for c in ch.values()),
+		"optouts": optouts,
+		# Meta reports delivery for WhatsApp only; Frappe's mail system reports opens only when tracking is on
+		"delivered_rate": _rate(delivered, ch["WhatsApp"]["sent"]),
+		"read_rate": _rate(read, read_base),
+		"reply_rate": _rate(numbers["replied"], numbers["reached"]),
+	}
+
+
+def _count_campaigns(start, end, who):
+	"""Campaigns that were created, started or sent something in the period, by status."""
+	scope, params = _nurture_scope(who)
+	params.update({"s": start, "e": add_days(end, 1)})
+	rows = frappe.db.sql(
+		"""select c.status, count(*) as n from `tabCRM Campaign` c
+		where ((c.creation >= %(s)s and c.creation < %(e)s) or (c.started_at >= %(s)s and c.started_at < %(e)s)
+			or exists (select 1 from `tabCRM Campaign Recipient` rp where rp.campaign = c.name
+				and rp.sent_at >= %(s)s and rp.sent_at < %(e)s))"""
+		+ scope
+		+ " group by c.status",
+		params,
+		as_dict=True,
+	)
+	return rows
+
+
+def _count_optouts(start, end, who):
+	params = {"s": start, "e": add_days(end, 1)}
+	if not who:
+		return frappe.db.sql("select count(*) from `tabCRM Campaign Opt Out` where creation >= %(s)s and creation < %(e)s", params)[0][0]
+	params["who"] = who
+	return frappe.db.sql(
+		"""select count(*) from `tabCRM Campaign Opt Out` o where o.creation >= %(s)s and o.creation < %(e)s
+		and o.lead in (select rp.recipient_id from `tabCRM Campaign Recipient` rp join `tabCRM Campaign` c on c.name = rp.campaign
+			where rp.recipient_type = 'CRM Lead' and (c.owner = %(who)s or c.campaign_owner = %(who)s))""",
+		params,
+	)[0][0]
+
+
+@frappe.whitelist()
+def get_nurturing(from_date=None, to_date=None, user=None):
+	"""Campaign analytics for the Lead Nurturing view of the Sales Dashboard.
+
+	Managers see every campaign (and can look at one person's); a sales user only sees what comes from
+	the campaigns they own or run, whatever ``user`` says. "In the period" means: sent in the period.
+	A reply is a message from the lead (WhatsApp or email) within 14 days after a send.
+	"""
+	frappe.only_for(NURTURE_ROLES)
+	from crm_addons.utils import get_settings, is_manager
+
+	start, end = _nurture_period(from_date, to_date)
+	who = _nurture_who(user)
+	tracking = bool(frappe.db.exists("Email Account", {"enable_outgoing": 1, "track_email_status": 1}))
+
+	status_rows = _count_campaigns(start, end, who)
+	campaigns = sum(r.n for r in status_rows)
+	numbers = _nurture_numbers(start, end, who)
+	totals = _nurture_totals(numbers, tracking, campaigns, _count_optouts(start, end, who))
+
+	span = date_diff(end, start) + 1
+	prev_start, prev_end = add_days(start, -span), add_days(start, -1)
+	prev_numbers = _nurture_numbers(prev_start, prev_end, who, replies=False)
+	previous = _nurture_totals(prev_numbers, tracking, sum(r.n for r in _count_campaigns(prev_start, prev_end, who)), 0)
+	previous["reply_rate"] = None
+
+	days = []
+	d = start
+	while d <= end:
+		row = numbers["by_day"].get(str(d), {})
+		days.append({"date": str(d), **{c: row.get(c, 0) for c in NURTURE_CHANNELS}})
+		d = add_days(d, 1)
+
+	scope, params = _nurture_scope(who)
+	params.update({"s": start, "e": add_days(end, 1)})
+	top = frappe.db.sql(
+		"""select c.name, c.campaign_name, c.status, count(*) as sent,
+			sum(rp.status in ('Delivered', 'Read')) as delivered, sum(rp.status = 'Read') as `read`,
+			sum(rp.channel = 'Email') as email, sum(rp.channel = 'WhatsApp') as whatsapp,
+			count(distinct rp.recipient_id) as reached
+		from `tabCRM Campaign Recipient` rp join `tabCRM Campaign` c on c.name = rp.campaign
+		where rp.sent_at >= %(s)s and rp.sent_at < %(e)s and rp.status in ('Sent', 'Delivered', 'Read')"""
+		+ scope
+		+ " group by c.name, c.campaign_name, c.status order by sent desc, c.creation desc limit 10",
+		params,
+		as_dict=True,
+	)
+	failed_by = {
+		r.campaign: r.n
+		for r in frappe.db.sql(
+			"select rp.campaign, count(*) as n from `tabCRM Campaign Recipient` rp join `tabCRM Campaign` c on c.name = rp.campaign "
+			"where rp.status = 'Failed' and rp.failed_at >= %(s)s and rp.failed_at < %(e)s" + scope + " group by rp.campaign",
+			params,
+			as_dict=True,
+		)
+	}
+	top_campaigns = [
+		{
+			"name": r.name,
+			"campaign_name": r.campaign_name or r.name,
+			"status": r.status,
+			"sent": cint(r.sent),
+			"reached": cint(r.reached),
+			"delivered": cint(r.delivered),
+			"read": cint(r.read),
+			"failed": cint(failed_by.get(r.name)),
+			"replied": cint(numbers["replied_by_campaign"].get(r.name)),
+			"email": cint(r.email),
+			"whatsapp": cint(r.whatsapp),
+			"reply_rate": _rate(cint(numbers["replied_by_campaign"].get(r.name)), cint(r.reached)),
+		}
+		for r in top
+	]
+
+	lead_filter = " and l.lead_owner = %(who)s" if who else ""
+	nurtured = frappe.db.sql(
+		"""select count(distinct rp.recipient_id) from `tabCRM Campaign Recipient` rp
+		join `tabCRM Campaign` c on c.name = rp.campaign join `tabCRM Lead` l on l.name = rp.recipient_id
+		where rp.recipient_type = 'CRM Lead' and rp.sent_at >= %(s)s and rp.sent_at < %(e)s
+		and rp.status in ('Sent', 'Delivered', 'Read') and ifnull(l.converted, 0) = 0"""
+		+ scope
+		+ lead_filter,
+		params,
+	)[0][0]
+	open_leads = frappe.db.sql(
+		"select count(*) from `tabCRM Lead` l where ifnull(l.converted, 0) = 0" + lead_filter, {"who": who}
+	)[0][0]
+	any_campaign = bool(frappe.db.sql("select 1 from `tabCRM Campaign` c where 1 = 1" + scope + " limit 1", params))
+
+	order = ["Running", "Queued", "Scheduled", "Paused", "Completed", "Draft", "Cancelled", "Failed"]
+	counts = {r.status: r.n for r in status_rows}
+	return {
+		"enabled": bool(cint(get_settings().campaigns_enabled)),
+		"scope": {"from": str(start), "to": str(end), "user": who, "is_manager": is_manager()},
+		"totals": totals,
+		"previous": previous,
+		"channels": numbers["channels"],
+		"by_day": days,
+		"status_counts": [{"status": s, "count": counts[s]} for s in order if counts.get(s)]
+		+ [{"status": s, "count": n} for s, n in counts.items() if s not in order and n],
+		"top_campaigns": top_campaigns,
+		"nurtured": {"nurtured": cint(nurtured), "open_leads": cint(open_leads), "not_nurtured": max(0, cint(open_leads) - cint(nurtured))},
+		"tracking": {"email_open": tracking},
+		"has_campaigns": any_campaign,
+	}

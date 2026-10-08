@@ -6,6 +6,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, escape_html, get_datetime, now_datetime
 
+from crm_addons import debuglog
 from crm_addons.utils import build_ics, format_when, get_reference_info, get_settings, user_details
 
 # English source strings; translated where they are used.
@@ -217,6 +218,7 @@ def _offsets(settings):
 	)
 
 
+@debuglog.traced("meetings.send_due_reminders")
 def send_due_reminders():
 	"""Every 5 minutes: remind people about meetings that are about to start."""
 	settings = get_settings()

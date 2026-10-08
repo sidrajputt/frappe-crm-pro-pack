@@ -22,24 +22,57 @@ before_uninstall = "crm_addons.install.before_uninstall"
 permission_query_conditions = {
 	"CRM Meeting": "crm_addons.permissions.get_permission_query_conditions",
 	"CRM Follow Up": "crm_addons.permissions.get_follow_up_query_conditions",
+	"CRM Campaign": "crm_addons.campaigns.permissions.campaign_query_conditions",
+	"CRM Campaign Recipient": "crm_addons.campaigns.permissions.recipient_query_conditions",
+	"CRM Campaign Automation": "crm_addons.campaigns.permissions.automation_query_conditions",
 }
 has_permission = {
 	"CRM Meeting": "crm_addons.permissions.has_permission",
 	"CRM Follow Up": "crm_addons.permissions.has_follow_up_permission",
+	"CRM Campaign": "crm_addons.campaigns.permissions.campaign_has_permission",
+	"CRM Campaign Recipient": "crm_addons.campaigns.permissions.recipient_has_permission",
+	"CRM Campaign Automation": "crm_addons.campaigns.permissions.automation_has_permission",
+}
+
+# Campaign Manager: STOP replies opt a number out, and Meta's delivery/read callbacks (which the
+# frappe_whatsapp webhook writes onto the WhatsApp Message) update the campaign recipient in real time.
+# Replies (WhatsApp and email) run a campaign's lead-update rules; a new or re-statused Lead can start an automatic campaign.
+doc_events = {
+	"WhatsApp Message": {
+		"after_insert": ["crm_addons.campaigns.optout.on_whatsapp_message", "crm_addons.campaigns.rules.on_whatsapp_message"],
+		"on_update": "crm_addons.campaigns.engine.on_whatsapp_message_update",
+	},
+	"Communication": {"after_insert": "crm_addons.campaigns.rules.on_communication"},
+	"CRM Lead": {
+		"after_insert": "crm_addons.campaigns.triggers.on_lead_insert",
+		"on_update": "crm_addons.campaigns.triggers.on_lead_update",
+	},
 }
 
 # CRM's page has no place for an app's script, so the tag is added to the response (see inject.py).
-after_request = ["crm_addons.inject.add_addon_script"]
+after_request = ["crm_addons.inject.add_addon_script", "crm_addons.debuglog.after_request"]
 
-# A short address for the full-screen Sales Dashboard.
-website_redirects = [{"source": "/sales-dashboard", "target": "/assets/crm_addons/meetings/dashboard.html"}]
+# TEMPORARY diagnostics (see docs/DEBUGGING.md): time every request to this app and watch for stalls.
+before_request = ["crm_addons.debuglog.before_request"]
+
+# Short addresses for the full-screen Sales Dashboard, Follow-ups, Campaign Manager and the setup page.
+website_redirects = [
+	{"source": "/sales-dashboard", "target": "/assets/crm_addons/meetings/dashboard.html"},
+	{"source": "/followups", "target": "/assets/crm_addons/meetings/followups.html"},
+	{"source": "/campaigns", "target": "/assets/crm_addons/campaigns/index.html"},
+	{"source": "/pro-pack-setup", "target": "/assets/crm_addons/setup/index.html"},
+]
 
 scheduler_events = {
 	"cron": {
 		"*/5 * * * *": [
 			"crm_addons.notifications.send_due_reminders",
 			"crm_addons.followups.send_due_reminders",
-		]
+			"crm_addons.campaigns.engine.sync_statuses",
+			"crm_addons.campaigns.health.check",
+		],
+		# Campaign Manager: claims rate-limited batches and starts scheduled campaigns.
+		"* * * * *": ["crm_addons.campaigns.engine.dispatch"],
 	},
 	"hourly": ["crm_addons.utils.refresh_stale_next_meetings"],
 	"daily": ["crm_addons.stale.send_stale_alerts", "crm_addons.scoring.refresh_all"],

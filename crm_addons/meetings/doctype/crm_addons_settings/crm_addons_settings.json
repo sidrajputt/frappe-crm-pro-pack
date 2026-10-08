@@ -37,9 +37,30 @@
   "show_list_button",
   "show_follow_up_button",
   "show_floating_buttons",
+  "show_sidebar_links",
   "show_record_tabs",
   "hide_deals_menu",
-  "hide_convert_button"
+  "hide_notes_menu",
+  "hide_tasks_menu",
+  "hide_call_logs_menu",
+  "hide_convert_button",
+  "campaigns_section",
+  "campaigns_enabled",
+  "campaign_batch_size",
+  "campaign_rate_per_minute",
+  "campaign_max_retries",
+  "column_break_campaigns",
+  "whatsapp_consent_mode",
+  "default_country_code",
+  "alerts_section",
+  "campaign_alerts_enabled",
+  "campaign_alert_failure_percent",
+  "campaign_alert_min_messages",
+  "cost_section",
+  "campaign_cost_email",
+  "campaign_cost_whatsapp_marketing",
+  "campaign_cost_whatsapp_utility",
+  "campaign_cost_whatsapp_authentication"
  ],
  "fields": [
   {
@@ -246,6 +267,13 @@
    "default": "1"
   },
   {
+   "fieldname": "show_sidebar_links",
+   "fieldtype": "Check",
+   "label": "Show links in the side menu",
+   "default": "1",
+   "description": "Adds the Sales Dashboard (it also holds Lead Nurturing), Follow-ups, Meetings and Campaigns to CRM's left menu, and to the Dashboard page header."
+  },
+  {
    "fieldname": "show_record_tabs",
    "fieldtype": "Check",
    "label": "Add Meetings and Follow-ups tabs to Lead pages",
@@ -259,11 +287,140 @@
    "description": "Only hides it from the screen. The Deals pages are still there for anyone who opens their address."
   },
   {
+   "fieldname": "hide_notes_menu",
+   "fieldtype": "Check",
+   "label": "Hide \"Notes\" from the CRM side menu",
+   "default": "0",
+   "description": "Only hides it from the screen. The Notes pages are still there for anyone who opens their address."
+  },
+  {
+   "fieldname": "hide_tasks_menu",
+   "fieldtype": "Check",
+   "label": "Hide \"Tasks\" from the CRM side menu",
+   "default": "0",
+   "description": "Only hides it from the screen. The Tasks pages are still there for anyone who opens their address."
+  },
+  {
+   "fieldname": "hide_call_logs_menu",
+   "fieldtype": "Check",
+   "label": "Hide \"Call Logs\" from the CRM side menu",
+   "default": "0",
+   "description": "Only hides it from the screen. The Call Logs pages are still there for anyone who opens their address."
+  },
+  {
    "fieldname": "hide_convert_button",
    "fieldtype": "Check",
    "label": "Hide the \"Convert to Deal\" button on the Lead page",
    "default": "0",
    "description": "Only hides the button. It matches the button's label, so it may need a look after a CRM update."
+  },
+  {
+   "fieldname": "campaigns_section",
+   "fieldtype": "Section Break",
+   "label": "Campaign Manager"
+  },
+  {
+   "fieldname": "campaigns_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Campaign Manager",
+   "default": "1"
+  },
+  {
+   "fieldname": "campaign_batch_size",
+   "fieldtype": "Int",
+   "label": "Messages per batch",
+   "default": "100",
+   "description": "How many messages one dispatcher tick hands to the workers, per campaign."
+  },
+  {
+   "fieldname": "campaign_rate_per_minute",
+   "fieldtype": "Int",
+   "label": "Maximum messages per minute (per campaign)",
+   "default": "300",
+   "description": "Keep this under your Meta throughput and your mail provider's limits."
+  },
+  {
+   "fieldname": "campaign_max_retries",
+   "fieldtype": "Int",
+   "label": "Automatic retries",
+   "default": "2",
+   "description": "Only for failures that prove the provider did not accept the message (rate limits, connection errors)."
+  },
+  {
+   "fieldname": "column_break_campaigns",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "whatsapp_consent_mode",
+   "fieldtype": "Select",
+   "label": "WhatsApp consent",
+   "options": "Require opt-in\nAllow unless opted out",
+   "default": "Require opt-in",
+   "description": "Meta requires opt-in for marketing messages. 'Require opt-in' sends only to leads with the WhatsApp Opt-in box ticked, unless the campaign owner confirms consent on the campaign."
+  },
+  {
+   "fieldname": "default_country_code",
+   "fieldtype": "Data",
+   "label": "Default country code",
+   "description": "For example 91. Added to WhatsApp numbers of up to 10 digits that have no country code."
+  },
+  {
+   "fieldname": "alerts_section",
+   "fieldtype": "Section Break",
+   "label": "Campaign alerts",
+   "depends_on": "campaigns_enabled"
+  },
+  {
+   "fieldname": "campaign_alerts_enabled",
+   "fieldtype": "Check",
+   "label": "Warn me when a campaign has problems",
+   "default": "1",
+   "description": "Checked every 5 minutes while a campaign runs. The campaign owner is notified."
+  },
+  {
+   "fieldname": "campaign_alert_failure_percent",
+   "fieldtype": "Percent",
+   "label": "Failure rate that triggers a warning",
+   "default": "30",
+   "depends_on": "campaign_alerts_enabled"
+  },
+  {
+   "fieldname": "campaign_alert_min_messages",
+   "fieldtype": "Int",
+   "label": "Only after this many messages in the last hour",
+   "default": "20",
+   "depends_on": "campaign_alerts_enabled"
+  },
+  {
+   "fieldname": "cost_section",
+   "fieldtype": "Section Break",
+   "label": "Message prices (for campaign cost and ROI)",
+   "depends_on": "campaigns_enabled"
+  },
+  {
+   "fieldname": "campaign_cost_email",
+   "fieldtype": "Float",
+   "label": "Price per email",
+   "precision": "4",
+   "description": "In your company currency. Leave empty if you do not want a cost shown."
+  },
+  {
+   "fieldname": "campaign_cost_whatsapp_marketing",
+   "fieldtype": "Float",
+   "label": "Price per WhatsApp marketing message",
+   "precision": "4"
+  },
+  {
+   "fieldname": "campaign_cost_whatsapp_utility",
+   "fieldtype": "Float",
+   "label": "Price per WhatsApp utility message",
+   "precision": "4"
+  },
+  {
+   "fieldname": "campaign_cost_whatsapp_authentication",
+   "fieldtype": "Float",
+   "label": "Price per WhatsApp authentication message",
+   "precision": "4"
   }
  ],
  "index_web_pages_for_search": 1,

@@ -128,22 +128,29 @@ def get_csrf_token():
 
 @frappe.whitelist()
 def get_client_config():
+	# settings.get(): a field added by a newer version is simply empty until `bench migrate` has run,
+	# instead of failing every page load
 	settings = get_settings()
 	return {
 		"user": frappe.session.user,
 		"user_name": user_details(frappe.session.user)[1] or frappe.session.user,
 		"is_manager": is_manager(),
-		"show_record_buttons": cint(settings.show_record_buttons),
-		"show_list_button": cint(settings.show_list_button),
-		"show_floating_buttons": cint(settings.show_floating_buttons),
-		"show_follow_up_button": cint(settings.show_follow_up_button),
-		"hide_deals_menu": cint(settings.hide_deals_menu),
-		"hide_convert_button": cint(settings.hide_convert_button),
-		"show_record_tabs": cint(settings.show_record_tabs),
-		"follow_ups_enabled": cint(settings.enable_follow_ups),
-		"default_duration": cint(settings.default_duration) or 30,
-		"default_add_video_meeting": cint(settings.default_add_video_meeting),
-		"default_provider": settings.default_provider or "Google Meet",
+		"show_record_buttons": cint(settings.get("show_record_buttons")),
+		"show_list_button": cint(settings.get("show_list_button")),
+		"show_floating_buttons": cint(settings.get("show_floating_buttons")),
+		"show_sidebar_links": cint(settings.get("show_sidebar_links")),
+		"show_follow_up_button": cint(settings.get("show_follow_up_button")),
+		"hide_deals_menu": cint(settings.get("hide_deals_menu")),
+		"hide_notes_menu": cint(settings.get("hide_notes_menu")),
+		"hide_tasks_menu": cint(settings.get("hide_tasks_menu")),
+		"hide_call_logs_menu": cint(settings.get("hide_call_logs_menu")),
+		"hide_convert_button": cint(settings.get("hide_convert_button")),
+		"show_record_tabs": cint(settings.get("show_record_tabs")),
+		"follow_ups_enabled": cint(settings.get("enable_follow_ups")),
+		"campaigns_enabled": cint(settings.get("campaigns_enabled")),
+		"default_duration": cint(settings.get("default_duration")) or 30,
+		"default_add_video_meeting": cint(settings.get("default_add_video_meeting")),
+		"default_provider": settings.get("default_provider") or "Google Meet",
 		"providers": [p for p in provider_catalog() if p["implemented"]],
 	}
 
