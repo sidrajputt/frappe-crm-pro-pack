@@ -7,7 +7,7 @@
 	--cra-border: #e4e4e4;
 	--cra-text: #171717;
 	--cra-muted: #6b6b6b;
-	--cra-primary: #171717;
+	--cra-primary: #2d36a3;
 	--cra-primary-text: #ffffff;
 	--cra-green: #188038;
 	--cra-green-bg: #e6f4ea;
@@ -15,8 +15,8 @@
 	--cra-amber-bg: #fef3e0;
 	--cra-red: #c5221f;
 	--cra-red-bg: #fce8e6;
-	--cra-blue: #174ea6;
-	--cra-blue-bg: #e8f0fe;
+	--cra-blue: #252d8c;
+	--cra-blue-bg: #e8eafb;
 	--cra-shadow: 0 8px 28px rgba(15, 23, 42, 0.18);
 }
 :root[data-theme="dark"] {
@@ -26,16 +26,16 @@
 	--cra-border: #333333;
 	--cra-text: #ededed;
 	--cra-muted: #a0a0a0;
-	--cra-primary: #ededed;
-	--cra-primary-text: #171717;
+	--cra-primary: #8a96ff;
+	--cra-primary-text: #0d1020;
 	--cra-green: #81c995;
 	--cra-green-bg: #163322;
 	--cra-amber: #fdc069;
 	--cra-amber-bg: #3a2a10;
 	--cra-red: #f28b82;
 	--cra-red-bg: #3c1a18;
-	--cra-blue: #8ab4f8;
-	--cra-blue-bg: #172a4a;
+	--cra-blue: #b4bcff;
+	--cra-blue-bg: #202650;
 	--cra-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
 }
 
@@ -167,3 +167,9 @@ textarea.cra-input { resize: vertical; }
 /* one thin divider before our rows in the side menu (no heading) */
 .cra-side-sep { flex: none; height: 0; margin: 4px 0; border-top: 1px solid var(--outline-gray-1, rgba(128, 128, 128, 0.25)); }
 [data-cra-side] { cursor: pointer; }
+
+/* same shapes as the Pro Pack pages: 6px controls, 4px tags, 8px panels */
+.cra-chip, .cra-pill, .cra-badge { border-radius: 4px; }
+.cra-count { border-radius: 4px; }
+.cra-btn, .cra-input, .cra-tab, .cra-icon-btn { border-radius: 6px; }
+.cra-card, .cra-next, .cra-dialog { border-radius: 8px; }

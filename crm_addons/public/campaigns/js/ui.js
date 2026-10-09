@@ -44,11 +44,16 @@
 			const a = getAnchor(); if (!a) return
 			const r = a.getBoundingClientRect()
 			if (layout) { style.value = layout(r); return }
-			const below = innerHeight - r.bottom, above = r.top
-			const w = Math.max(width, r.width)
-			const up = below < 240 && above > below
-			const left = align === 'right' ? Math.max(8, Math.min(r.right - w, innerWidth - w - 8)) : Math.max(8, Math.min(r.left, innerWidth - w - 8))
-			style.value = { left: left + 'px', minWidth: w + 'px', ...(up ? { bottom: innerHeight - r.top + 6 + 'px', maxHeight: Math.min(maxH, above - 16) + 'px' } : { top: r.bottom + 6 + 'px', maxHeight: Math.min(maxH, below - 16) + 'px' }) }
+			// Always inside the window: below the anchor when there is room, above it otherwise, never shorter than a few rows,
+			// never wider than the window, and shut when the anchor itself has scrolled out of sight.
+			const vh = innerHeight, vw = innerWidth, gap = 8, floor = 140
+			if (r.bottom < 0 || r.top > vh) { close(); return }
+			const below = vh - r.bottom - gap, above = r.top - gap
+			const w = Math.min(Math.max(width, r.width), vw - 2 * gap)
+			const up = below < Math.min(maxH, 240) && above > below
+			const room = Math.max(floor, Math.min(maxH, up ? above : below))
+			const left = align === 'right' ? Math.max(gap, Math.min(r.right - w, vw - w - gap)) : Math.max(gap, Math.min(r.left, vw - w - gap))
+			style.value = { left: left + 'px', minWidth: w + 'px', maxWidth: vw - 2 * gap + 'px', maxHeight: room + 'px', ...(up ? { bottom: Math.max(gap, vh - r.top + 6) + 'px' } : { top: Math.min(r.bottom + 6, vh - room - gap) + 'px' }) }
 		}
 		function outside(e) { if (pop.value && !pop.value.contains(e.target) && !(getAnchor() && getAnchor().contains(e.target))) close() }
 		function key(e) { if (e.key === 'Escape' && open.value) { e.stopPropagation(); close() } }
@@ -363,12 +368,24 @@
 	C.EmailFrame = {
 		props: { subject: String, html: String, fromName: String, fromEmail: String, toName: String, device: { type: String, default: 'desktop' }, loading: Boolean, minH: { type: Number, default: 360 } },
 		setup(props) {
-			const frame = ref(null); const h = ref(props.minH)
-			function measure() { try { const d = frame.value.contentDocument; if (d && d.body) h.value = Math.max(props.minH, d.documentElement.scrollHeight + 4) } catch (e) { /* sandbox */ } }
+			const frame = ref(null); const h = ref(props.minH); const sc = ref(1); const fw = ref(0)
+			// A phone mail app shrinks an email that is wider than the screen to fit it; do the same, so a fixed 600 px
+			// email looks like it does on a real phone instead of being cut off at the edge.
+			function measure() {
+				try {
+					const d = frame.value.contentDocument; if (!d || !d.body) return
+					const holder = frame.value.parentElement.clientWidth
+					const natural = d.documentElement.scrollWidth
+					if (props.device === 'mobile' && holder && natural > holder + 1) { fw.value = natural; sc.value = holder / natural } else { sc.value = 1 }
+					h.value = Math.max(props.device === 'mobile' ? 0 : props.minH, d.documentElement.scrollHeight + 4)
+				} catch (e) { /* sandbox */ }
+			}
+			const frameStyle = computed(() => ({ height: h.value + 'px', ...(sc.value < 1 ? { width: fw.value + 'px', maxWidth: 'none', transform: 'scale(' + sc.value + ')', transformOrigin: '0 0' } : {}) }))
+			const bodyStyle = computed(() => (sc.value < 1 ? { height: h.value * sc.value + 'px', overflow: 'hidden' } : {}))
 			// images that arrive after the page changes its height: measure again (capture phase: image load does not bubble)
 			function loaded() { measure(); try { frame.value.contentDocument.addEventListener('load', () => setTimeout(measure, 30), true) } catch (e) { /* sandbox */ } }
-			watch(() => [props.html, props.device], () => nextTick(() => setTimeout(measure, 60)))
-			return { frame, h, measure, loaded, doc: computed(() => emailDoc(props.html)), initial: CM.initials }
+			watch(() => [props.html, props.device], () => { sc.value = 1; nextTick(() => setTimeout(measure, 60)) })
+			return { frame, h, sc, frameStyle, bodyStyle, measure, loaded, doc: computed(() => emailDoc(props.html)), initial: CM.initials }
 		},
 		template: `
 		<div class="dev" :class="device">
@@ -377,8 +394,8 @@
 				<div class="ph-bezel"><div class="ph-screen">
 					<div class="ph-status"><b>9:41</b><span class="ph-notch" aria-hidden="true"></span><span class="ph-sig" aria-hidden="true"><i></i><i></i><i></i><i></i><em></em></span></div>
 					<div class="ph-app"><Ico name="chevron-left" size="sm" /><span>Inbox</span></div>
-					<div class="mc-head"><div class="mc-subject">{{ subject || '(no subject)' }}</div><div class="row" style="gap:8px"><Avatar :name="fromName || 'You'" :size="30" /><div class="grow" style="min-width:0"><div class="ellipsis"><b>{{ fromName || 'Your name' }}</b></div><div class="small faint ellipsis">to {{ toName || 'Asha Sharma' }}</div></div><span class="tiny faint">Now</span></div></div>
-					<div class="mc-body"><div v-if="loading" class="mc-load"><span class="spin"></span></div><iframe ref="frame" title="Email preview" sandbox="allow-same-origin" :srcdoc="doc" :style="{ height: h + 'px' }" @load="loaded"></iframe></div>
+					<div class="mc-head"><div class="mc-subject">{{ subject || '(no subject)' }}</div><div class="row" style="gap:8px"><Avatar :name="fromName || 'You'" :size="30" /><div class="grow" style="min-width:0"><div class="ellipsis"><b>{{ fromName || 'Your name' }}</b></div><div class="small faint ellipsis">to {{ toName || 'Siddharth Singh' }}</div></div><span class="tiny faint">Now</span></div></div>
+					<div class="mc-body" :style="bodyStyle"><div v-if="loading" class="mc-load"><span class="spin"></span></div><iframe ref="frame" title="Email preview" sandbox="allow-same-origin" :srcdoc="doc" :style="frameStyle" @load="loaded"></iframe></div>
 				</div><span class="ph-home" aria-hidden="true"></span></div>
 			</div>
 			<div v-else class="win">
@@ -386,9 +403,9 @@
 				<div class="mc">
 					<div class="mc-head">
 						<div class="mc-subject">{{ subject || '(no subject)' }}</div>
-						<div class="row" style="gap:10px"><Avatar :name="fromName || 'You'" :size="34" /><div class="grow"><div class="ellipsis"><b>{{ fromName || 'Your name' }}</b> <span class="faint small">&lt;{{ fromEmail || 'you@company.com' }}&gt;</span></div><div class="small faint ellipsis">to {{ toName || 'Asha Sharma' }}</div></div><span class="small faint">Now</span></div>
+						<div class="row" style="gap:10px"><Avatar :name="fromName || 'You'" :size="34" /><div class="grow"><div class="ellipsis"><b>{{ fromName || 'Your name' }}</b> <span class="faint small">&lt;{{ fromEmail || 'you@company.com' }}&gt;</span></div><div class="small faint ellipsis">to {{ toName || 'Siddharth Singh' }}</div></div><span class="small faint">Now</span></div>
 					</div>
-					<div class="mc-body"><div v-if="loading" class="mc-load"><span class="spin"></span></div><iframe ref="frame" title="Email preview" sandbox="allow-same-origin" :srcdoc="doc" :style="{ height: h + 'px' }" @load="loaded"></iframe></div>
+					<div class="mc-body" :style="bodyStyle"><div v-if="loading" class="mc-load"><span class="spin"></span></div><iframe ref="frame" title="Email preview" sandbox="allow-same-origin" :srcdoc="doc" :style="frameStyle" @load="loaded"></iframe></div>
 				</div>
 			</div>
 		</div>`,

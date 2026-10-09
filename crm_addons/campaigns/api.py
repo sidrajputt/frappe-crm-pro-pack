@@ -505,7 +505,7 @@ def _sample_or_lead(lead, owner=None):
 		doc.check_permission("read")
 		ctx = personalization.build_context(doc, frappe._dict(campaign_owner=owner or frappe.session.user))
 		return ctx, {"name": doc.name, "lead_name": doc.get("lead_name"), "sample": False}
-	return personalization.sample_context(owner), {"name": "", "lead_name": "Asha Sharma", "sample": True}
+	return personalization.sample_context(owner), {"name": "", "lead_name": "Siddharth Singh", "sample": True}
 
 
 @frappe.whitelist()

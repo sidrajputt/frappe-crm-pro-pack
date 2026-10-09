@@ -87,10 +87,10 @@ def build_context(lead, campaign):
 
 
 SAMPLE_LEAD = {
-	"first_name": "Asha", "last_name": "Sharma", "lead_name": "Asha Sharma", "email": "asha.sharma@example.com",
+	"first_name": "Siddharth", "last_name": "Singh", "lead_name": "Siddharth Singh", "email": "siddharth.singh@example.com",
 	"mobile_no": "+91 98765 43210", "phone": "+91 98765 43210", "organization": "Acme Learning", "status": "New",
 	"source": "Website", "city": "Pune", "state": "Maharashtra", "country": "India", "job_title": "Operations Manager",
-	"website": "https://example.com", "salutation": "Ms", "industry": "Education", "territory": "India", "gender": "Female",
+	"website": "https://example.com", "salutation": "Mr", "industry": "Education", "territory": "India", "gender": "Male",
 }
 
 
@@ -100,8 +100,8 @@ def sample_context(campaign_owner=None):
 	lead = dict(SAMPLE_LEAD, lead_owner=user)
 	context = build_context(lead, frappe._dict(campaign_owner=user))
 	context["lead_url"] = frappe.utils.get_url() + "/crm/leads/CRM-LEAD-0001"
-	context["owner_name"] = context["owner_name"] or "Rahul Verma"
-	context["sender_name"] = context["sender_name"] or "Rahul Verma"
+	context["owner_name"] = context["owner_name"] or "Siddharth Singh"
+	context["sender_name"] = context["sender_name"] or "Siddharth Singh"
 	return context
 
 

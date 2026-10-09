@@ -1084,6 +1084,19 @@
 				if (!b.closest('[data-cra]') && b.textContent.trim() === label && b.querySelector('svg')) hideItem(b)
 			})
 		})
+		// tabs of a Lead / Deal page: the button is found by its label, inside the row that also holds Activity
+		;[['hide_lead_calls_tab', 'Calls'], ['hide_lead_tasks_tab', 'Tasks'], ['hide_lead_notes_tab', 'Notes']].forEach(function (m) {
+			if (!c[m[0]]) return
+			var label = translated(m[1]), act = translated('Activity')
+			Array.prototype.forEach.call(document.querySelectorAll('button, [role="tab"]'), function (b) {
+				if (b.closest('[data-cra], [data-cra-tab], [role="dialog"], nav, aside, header')) return
+				var t = b.textContent.trim()
+				if (t !== label && t !== m[1]) return
+				var row = b.parentElement, depth = 0
+				while (row && depth++ < 3 && !Array.prototype.some.call(row.querySelectorAll('button, [role="tab"]'), function (x) { return x.textContent.trim() === act })) row = row.parentElement
+				if (row && depth <= 3) hide(b)
+			})
+		})
 		if (c.hide_convert_button) {
 			var names = ['Convert to Deal', translated('Convert to Deal')]
 			Array.prototype.forEach.call(document.querySelectorAll('button'), function (b) {

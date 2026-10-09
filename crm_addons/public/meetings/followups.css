@@ -131,3 +131,7 @@ table.by-day .remark { width: 30%; }
 	.fu-banner { margin: 12px 14px 0; }
 	.fu-table .remark, .fu-table th.remark { display: none; }
 }
+
+/* the tabs already carry the counts, so the page opens on the list; connect rate is one quiet line beside them */
+.fu-rate { white-space: nowrap; padding-left: 12px; } .fu-rate b { color: var(--dash-ink, inherit); font-weight: 650; } .fu-rate span { color: var(--dash-faint, inherit); }
+.fu-panel { margin-top: 0; }

@@ -97,7 +97,22 @@
 		user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
 		send: '<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>',
 		plus: '<path d="M12 5v14M5 12h14"/>',
+		sliders: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
+		grip: '<circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/>',
 	}
+	// What each dashboard can show. A person's own choice (which, in what order, how wide) is saved for them on the server.
+	const WIDTHS = [[2, 'S', 'A third of the row'], [3, 'M', 'Half the row'], [4, 'L', 'Two thirds of the row'], [6, 'XL', 'The full row']]
+	const REGISTRY = {
+		sales: {
+			kpis: [['calls_today', 'Calls today'], ['due_today', 'Follow-ups due today'], ['calls', 'Calls'], ['connect_rate', 'Connect rate'], ['follow_ups', 'Follow-ups added'], ['leads', 'Leads added'], ['meetings', 'Meetings'], ['converted', 'Converted to deals', { deal: true }], ['time_to_call', 'Time to first call'], ['stale', 'Stale leads']],
+			widgets: [['daily', 'Daily activity', 4], ['outcomes', 'Call outcomes', 2], ['funnel', 'Lead funnel', 3], ['hours', 'Calls by hour', 3], ['team', 'Team performance', 6, { manager: true }], ['mix', 'Call outcomes by person', 6, { manager: true }], ['pipeline', 'Lead pipeline', 3], ['sources', 'Leads by source', 3], ['attempts', 'Attempts to connect', 2], ['temperature', 'Lead temperature', 2], ['meet_outcome', 'Meetings by outcome', 2], ['queue', 'Follow-up queue', 2], ['recent', 'Recent calls', 2], ['upcoming', 'Upcoming meetings', 2]],
+		},
+		nurturing: {
+			kpis: [['campaigns', 'Campaigns'], ['reached', 'Recipients reached'], ['delivered', 'Delivered rate'], ['read', 'Read / open rate'], ['reply', 'Reply rate'], ['failed', 'Failed'], ['optouts', 'Opt-outs']],
+			widgets: [['sent_by_day', 'Messages sent by day', 4], ['status', 'Campaign status', 2], ['funnel', 'Engagement funnel', 3], ['channels', 'Email vs WhatsApp', 3], ['top', 'Top campaigns', 4], ['nurtured', 'Leads nurtured', 2]],
+		},
+	}
+	const SERVER_VIEW = { sales: 'sales', nurturing: 'campaigns' }
 	const Ico = {
 		props: { name: String, size: String },
 		computed: { paths() { return ICONS[this.name] || '' } },
@@ -328,6 +343,7 @@
 			// Lead Nurturing: campaign numbers, fetched only when that tab is opened
 			const config = ref(null)
 			const nurturingOn = computed(() => !!(config.value && config.value.campaigns_enabled))
+			const deals = computed(() => !config.value || config.value.deals_enabled !== 0) // off when the Deals menu is hidden in the settings
 			const view = ref(location.hash === '#nurturing' ? 'nurturing' : 'sales')
 			const nur = ref(null)
 			const nurLoading = ref(false)
@@ -371,6 +387,7 @@
 			const onHash = () => setView(location.hash === '#nurturing' ? 'nurturing' : 'sales')
 			onMounted(() => {
 				load()
+				loadLayouts()
 				call('crm_addons.api.get_client_config').then((c) => {
 					config.value = c
 					if (view.value === 'nurturing') { if (c.campaigns_enabled) loadNurturing(); else view.value = 'sales' }
@@ -405,15 +422,14 @@
 			const everyone = computed(() => isManager.value && !scope.value.user)
 			const userOptions = computed(() => [{ value: '', label: 'Everyone' }, ...(scope.value ? scope.value.users.map((u) => ({ value: u.name, label: u.full_name })) : [])])
 			const subtitle = computed(() => (!scope.value ? '' : scope.value.user ? (isManager.value ? scope.value.user_name : 'Your numbers') : 'Whole team'))
-			const exportItems = [
-				{ key: 'xlsx', label: 'Excel workbook (.xlsx)', hint: 'Every section on its own sheet, plus the call log' },
-				{ key: 'csv', label: 'Call log (.csv)', hint: 'Every call in this period' },
-			]
+			const exportItems = computed(() => (view.value === 'sales'
+				? [{ key: 'xlsx', label: 'Excel workbook (.xlsx)', hint: 'Every section on its own sheet, plus the call log' }, { key: 'csv', label: 'Call log (.csv)', hint: 'Every call in this period' }]
+				: [{ key: 'xlsx', label: 'Excel workbook (.xlsx)', hint: 'Summary, by day, channels and every campaign' }, { key: 'csv', label: 'Campaigns (.csv)', hint: 'One row per campaign in this period' }]))
 			function exportFile(format) {
 				const [a, b] = rangeOf(range.value)
 				const q = new URLSearchParams({ from_date: ymd(a), to_date: ymd(b), format })
 				if (user.value) q.set('user', user.value)
-				window.location.href = '/api/method/crm_addons.reports.export_report?' + q.toString()
+				window.location.href = '/api/method/crm_addons.' + (view.value === 'sales' ? 'reports.export_report' : 'reports.export_campaigns') + '?' + q.toString()
 			}
 
 			// ---------- KPI cards
@@ -488,8 +504,8 @@
 
 			const funnel = computed(() => {
 				if (!data.value) return []
-				const top = Math.max(1, data.value.funnel[0].count)
-				return data.value.funnel.map((s, i, all) => ({ ...s, width: Math.max(2, (s.count / top) * 100), of_first: pct(s.count, top), step: i ? pct(s.count, all[i - 1].count) : null }))
+				const top = Math.max(1, data.value.funnel[0].count)  // (the first stage is never a deal stage)
+				return data.value.funnel.filter((s) => deals.value || !/deal/i.test(s.stage)).map((s, i, all) => ({ ...s, width: Math.max(2, (s.count / top) * 100), of_first: pct(s.count, top), step: i ? pct(s.count, all[i - 1].count) : null }))
 			})
 			const hourLabels = computed(() => (data.value ? data.value.by_hour.map((h) => hourLabel(h.hour)) : []))
 			const hourSeries = computed(() => (data.value ? [
@@ -526,7 +542,7 @@
 				return data.value.people.slice().sort((a, b) => (a[k] > b[k] ? 1 : a[k] < b[k] ? -1 : 0) * sort.dir || a.full_name.localeCompare(b.full_name))
 			})
 			const maxCalls = computed(() => Math.max(1, ...(data.value ? data.value.people.map((p) => p.calls) : [1])))
-			const columns = [['calls', 'Calls'], ['connected', 'Connected'], ['connect_rate', 'Connect rate'], ['not_picked', 'Not picked'], ['follow_ups', 'Follow-ups'], ['leads', 'Leads'], ['meetings', 'Meetings'], ['converted', 'Converted'], ['due_today', 'Due today'], ['overdue', 'Overdue']]
+			const columns = computed(() => [['calls', 'Calls'], ['connected', 'Connected'], ['connect_rate', 'Connect rate'], ['not_picked', 'Not picked'], ['follow_ups', 'Follow-ups'], ['leads', 'Leads'], ['meetings', 'Meetings'], ...(deals.value ? [['converted', 'Converted']] : []), ['due_today', 'Due today'], ['overdue', 'Overdue']])
 			const sortBy = (k) => { if (sort.key === k) sort.dir = -sort.dir; else { sort.key = k; sort.dir = -1 } }
 			const rateTone = (r, calls) => (!calls ? '' : r >= 50 ? 'good' : r >= 25 ? 'mid' : 'bad')
 			const mixRows = computed(() => (data.value ? data.value.people.filter((p) => p.calls > 0).slice(0, 12).map((p) => ({ name: p.full_name, total: p.calls, parts: Object.keys(OUTCOME_COLORS).filter((k) => p.outcomes[k]).map((k) => ({ key: k, n: p.outcomes[k], color: OUTCOME_COLORS[k] })) })) : []))
@@ -608,6 +624,81 @@
 			const nurQuiet = computed(() => !!nur.value && nur.value.has_campaigns && !nur.value.totals.sent && !nur.value.totals.campaigns)
 			const nurRateTone = (r) => (r === null ? '' : r >= 50 ? 'good' : r >= 20 ? 'mid' : 'bad')
 
+			// ---------- what this dashboard shows: the person's own choice, mine on the server (and kept in this browser as a fallback)
+			const editing = ref(false)
+			const dragOver = ref('')
+			const mine = reactive({ sales: null, nurturing: null })
+			let dragId = ''
+			let saveTimer
+			const localKey = (v) => 'crm_addons_dashboard_' + SERVER_VIEW[v]
+			function registryFor(v) {
+				const r = REGISTRY[v]
+				return {
+					kpis: r.kpis.filter((k) => !((k[2] || {}).deal && !deals.value)).map((k) => ({ id: k[0], title: k[1] })),
+					widgets: r.widgets.filter((w) => !((w[3] || {}).manager && !isManager.value)).map((w) => ({ id: w[0], title: w[1], w: w[2] })),
+				}
+			}
+			// the mine order first (for what still exists), then anything new in the order it ships
+			const orderBy = (items, savedItems, make) => {
+				const byId = Object.fromEntries(items.map((x) => [x.id, x])); const seen = new Set(); const out = []
+				;(savedItems || []).forEach((x) => { if (byId[x.id] && !seen.has(x.id)) { seen.add(x.id); out.push({ ...make(byId[x.id]), ...x }) } })
+				items.forEach((x) => { if (!seen.has(x.id)) out.push(make(x)) })
+				return out
+			}
+			const lay = computed(() => {
+				const reg = registryFor(view.value); const sv = mine[view.value] || {}
+				return { kpis: orderBy(reg.kpis, sv.kpis, (k) => ({ id: k.id, on: 1 })), widgets: orderBy(reg.widgets, sv.widgets, (w) => ({ id: w.id, w: w.w, on: 1 })) }
+			})
+			const titleOf = (id) => { const r = registryFor(view.value); return ([...r.kpis, ...r.widgets].find((x) => x.id === id) || {}).title || id }
+			const shownWidgets = computed(() => lay.value.widgets.filter((w) => w.on))
+			const cardsById = computed(() => {
+				const ids = REGISTRY[view.value].kpis.map((k) => k[0]); const list = view.value === 'sales' ? cards.value : nurCards.value
+				return Object.fromEntries(list.map((c, i) => [ids[i], { ...c, id: ids[i] }]))
+			})
+			const shownCards = computed(() => lay.value.kpis.filter((k) => k.on).map((k) => cardsById.value[k.id]).filter(Boolean))
+			function commit(next) {
+				mine[view.value] = JSON.parse(JSON.stringify(next))
+				try { localStorage.setItem(localKey(view.value), JSON.stringify(mine[view.value])) } catch (e) { /* storage blocked */ }
+				const v = view.value, body = JSON.stringify(mine[v])
+				clearTimeout(saveTimer)
+				saveTimer = setTimeout(() => call('crm_addons.dashboard.save_layout', { view: SERVER_VIEW[v], layout: body }).catch(() => {}), 500)
+			}
+			const edit = (fn) => { const next = JSON.parse(JSON.stringify(lay.value)); fn(next); commit(next) }
+			const move = (list, id, d) => { const i = list.findIndex((x) => x.id === id); const j = i + d; if (i < 0 || j < 0 || j >= list.length) return; list.splice(j, 0, list.splice(i, 1)[0]) }
+			const toggleKpi = (id) => edit((n) => { const k = n.kpis.find((x) => x.id === id); if (k) k.on = k.on ? 0 : 1 })
+			const toggleWidget = (id) => edit((n) => { const w = n.widgets.find((x) => x.id === id); if (w) w.on = w.on ? 0 : 1 })
+			const moveKpi = (id, d) => edit((n) => move(n.kpis, id, d))
+			// arrows move a widget past the next one that is showing, so a hidden one never makes a click look like nothing happened
+			const moveWidget = (id, d) => edit((n) => {
+				const i = n.widgets.findIndex((x) => x.id === id); let j = i + d
+				while (j >= 0 && j < n.widgets.length && !n.widgets[j].on && !editing.value) j += d
+				if (i < 0 || j < 0 || j >= n.widgets.length) return
+				n.widgets.splice(j, 0, n.widgets.splice(i, 1)[0])
+			})
+			const setWidth = (id, w) => edit((n) => { const x = n.widgets.find((y) => y.id === id); if (x) x.w = w })
+			const isFirst = (id) => { const l = shownWidgets.value; return !l.length || l[0].id === id }
+			const isLast = (id) => { const l = shownWidgets.value; return !l.length || l[l.length - 1].id === id }
+			function dragStart(id, e) { dragId = id; try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', id) } catch (err) { /* old browser */ } }
+			function dropOn(id) {
+				dragOver.value = ''
+				if (!dragId || dragId === id) return
+				edit((n) => { const i = n.widgets.findIndex((x) => x.id === dragId); const j = n.widgets.findIndex((x) => x.id === id); if (i < 0 || j < 0) return; n.widgets.splice(j, 0, n.widgets.splice(i, 1)[0]) })
+				dragId = ''
+			}
+			function resetLayout() {
+				mine[view.value] = null
+				try { localStorage.removeItem(localKey(view.value)) } catch (e) { /* storage blocked */ }
+				call('crm_addons.dashboard.reset_layout', { view: SERVER_VIEW[view.value] }).catch(() => {})
+			}
+			function loadLayouts() {
+				Object.keys(SERVER_VIEW).forEach((v) => {
+					let local = null
+					try { local = JSON.parse(localStorage.getItem(localKey(v)) || 'null') } catch (e) { /* none */ }
+					if (local) mine[v] = local
+					call('crm_addons.dashboard.get_layout', { view: SERVER_VIEW[v] }).then((r) => { if (r) mine[v] = r }).catch(() => {})
+				})
+			}
+
 			// ---------- links
 			// inside the pop-up a lead / meeting link must move the CRM tab, not the frame
 			const open = (url) => { if (!url) return; if (EMBED && window.parent !== window) tellParent('navigate', { url }); else location.href = url }
@@ -615,6 +706,7 @@
 			const close = () => tellParent('close')
 
 			return {
+				editing, dragOver, lay, titleOf, shownWidgets, shownCards, toggleKpi, toggleWidget, moveKpi, moveWidget, setWidth, isFirst, isLast, dragStart, dropOn, resetLayout, WIDTHS, deals,
 				EMBED, openFull, data, loading, fatal, range, user, userOptions, subtitle, updatedAt, exportItems, exportFile, metric, split, splitOptions, scope, isManager, everyone, cards,
 				dayLabels, seriesData, chartTotal, outcomeItems, outcomeTotal, pct, funnel, hourLabels, hourSeries, bestHour, attemptLabels, attemptSeries, statusRows, statusMax, statusTotal, sourceRows, sourceMax,
 				bandItems, meetingItems, meetingTotal, view, setView, nurturingOn, nur, nurLoading, nurError, refresh, funnelChannel, nurCards, nurDayLabels, nurSeries, nurTotalSent, nurFunnel, chanRows, chanMax, statusDonut, nurturedItems, campaignUrl, pct1, nurNoCampaigns, nurQuiet, nurRateTone, NUR, loadNurturing, showTeam, people, maxCalls, columns, sort, sortBy, rateTone, mixRows, mixMax, load, open, close, fmtWhen, outcomeTone, num, OUTCOME_COLORS,
@@ -627,7 +719,7 @@
 		<div class="dash-brand"><span class="brand-ico"><ico name="chart" size="lg" /></span><div><h1>Sales Dashboard</h1><div class="sub">{{ subtitle }}</div></div></div>
 		<div class="seg dash-tabs" role="tablist" aria-label="Dashboard" v-if="nurturingOn">
 			<button role="tab" :aria-selected="view === 'sales'" :class="{ on: view === 'sales' }" @click="setView('sales')">Sales</button>
-			<button role="tab" :aria-selected="view === 'nurturing'" :class="{ on: view === 'nurturing' }" @click="setView('nurturing')">Lead Nurturing</button>
+			<button role="tab" :aria-selected="view === 'nurturing'" :class="{ on: view === 'nurturing' }" @click="setView('nurturing')">Campaigns</button>
 		</div>
 		<div class="dash-controls">
 			<range-picker v-model="range" />
@@ -636,11 +728,23 @@
 		<span class="spacer"></span>
 		<span class="sub updated" v-if="updatedAt">Updated {{ updatedAt }}</span>
 		<button class="btn ghost icon" @click="refresh()" :title="updatedAt ? 'Refresh (updated ' + updatedAt + ')' : 'Refresh'" aria-label="Refresh"><ico name="refresh" size="lg" /></button>
-		<v-menu v-if="view === 'sales'" label="Export" icon="download" :items="exportItems" @select="exportFile" />
+		<button class="btn" :class="{ primary: editing }" @click="editing = !editing" :aria-pressed="editing" title="Choose what this dashboard shows"><ico name="sliders" /> {{ editing ? 'Done' : 'Customize' }}</button>
+		<v-menu label="Export" icon="download" :items="exportItems" @select="exportFile" />
 		<a class="btn" href="/crm" v-if="!EMBED"><ico name="back" /> CRM</a>
 		<button class="btn ghost icon" v-if="EMBED" @click="openFull" title="Open in a new tab" aria-label="Open in a new tab"><ico name="external" size="lg" /></button>
 		<button class="btn ghost icon" v-if="EMBED" @click="close" title="Close (Esc)" aria-label="Close"><ico name="x" size="lg" /></button>
 	</header>
+
+	<aside class="cust" v-if="editing" role="dialog" aria-label="Customize this dashboard">
+		<header><div><h3>Customize</h3><div class="sub">{{ view === 'sales' ? 'Sales' : 'Campaigns' }} dashboard. Saved for you only.</div></div><span class="spacer"></span><button class="btn small" @click="resetLayout">Reset to default</button><button class="btn small primary" @click="editing = false">Done</button></header>
+		<div class="cust-body">
+			<h4>Numbers across the top</h4>
+			<label class="crow" v-for="(k, i) in lay.kpis" :key="k.id"><span class="tg" :class="{ on: k.on }"><input type="checkbox" :checked="!!k.on" @change="toggleKpi(k.id)" :aria-label="'Show ' + titleOf(k.id)" /><i></i></span><span class="grow">{{ titleOf(k.id) }}</span><button class="wbtn" :disabled="i === 0" @click.prevent="moveKpi(k.id, -1)" aria-label="Move earlier"><ico name="left" /></button><button class="wbtn" :disabled="i === lay.kpis.length - 1" @click.prevent="moveKpi(k.id, 1)" aria-label="Move later"><ico name="right" /></button></label>
+			<h4>Charts and tables</h4>
+			<label class="crow" v-for="(w, i) in lay.widgets" :key="w.id"><span class="tg" :class="{ on: w.on }"><input type="checkbox" :checked="!!w.on" @change="toggleWidget(w.id)" :aria-label="'Show ' + titleOf(w.id)" /><i></i></span><span class="grow">{{ titleOf(w.id) }}</span><button class="wbtn" :disabled="i === 0" @click.prevent="moveWidget(w.id, -1)" aria-label="Move earlier"><ico name="left" /></button><button class="wbtn" :disabled="i === lay.widgets.length - 1" @click.prevent="moveWidget(w.id, 1)" aria-label="Move later"><ico name="right" /></button></label>
+			<p class="sub">You can also drag the charts into a new order, and change how wide each one is, right on the page.</p>
+		</div>
+	</aside>
 
 	<div class="banner error" v-if="view === 'sales' && fatal" style="margin:16px 24px 0">{{ fatal }}</div>
 	<div class="banner error" v-if="view === 'nurturing' && nurError" style="margin:16px 24px 0">{{ nurError }}</div>
@@ -650,37 +754,42 @@
 			<section class="panel nur-empty" v-if="nurNoCampaigns">
 				<span class="big"><ico name="send" /></span>
 				<h3>No campaigns yet</h3>
-				<p>Lead Nurturing shows how your email and WhatsApp campaigns perform: who was reached, what was delivered, read and answered. Create your first campaign to start nurturing leads.</p>
+				<p>Campaigns shows how your email and WhatsApp campaigns perform: who was reached, what was delivered, read and answered. Create your first campaign to start nurturing leads.</p>
 				<a class="btn primary" :href="campaignUrl('#/new')" target="_blank" rel="noopener"><ico name="plus" /> Create campaign</a>
 			</section>
 			<template v-else>
-				<section class="kpis nur-kpis">
-					<div class="kpi" v-for="c in nurCards" :key="c.label" :class="c.tone">
-						<div class="kpi-label">{{ c.label }}</div>
-						<div class="kpi-value">{{ c.value }}<span class="delta" v-if="c.delta" :class="c.delta.up ? 'up' : 'down'">{{ c.delta.up ? '▲' : '▼' }} {{ c.delta.text }}</span></div>
-						<div class="kpi-sub" :class="c.subTone">{{ c.sub }}</div>
-					</div>
-				</section>
+						<section class="kpis nur-kpis" v-if="shownCards.length">
+			<div class="kpi" v-for="c in shownCards" :key="c.id" :class="c.tone">
+				<div class="kpi-label">{{ c.label }}</div>
+				<div class="kpi-value">{{ c.value }}<span class="delta" v-if="c.delta" :class="c.delta.up ? 'up' : 'down'">{{ c.delta.up ? '▲' : '▼' }} {{ c.delta.text }}</span></div>
+				<div class="kpi-sub" :class="c.subTone">{{ c.sub }}</div>
+			</div>
+		</section>
 				<div class="banner nur-note" v-if="nurQuiet">No campaign was created or sent in this period. Pick a longer date range, or <a :href="campaignUrl('#/new')" target="_blank" rel="noopener">create a campaign</a>.</div>
 
-				<div class="grid two-one">
-					<section class="panel">
+			<div class="wgrid">
+				<section v-for="w in shownWidgets" :key="w.id" class="panel widget" :class="{ editing: editing, over: dragOver === w.id }" :style="{ gridColumn: 'span ' + w.w }" :draggable="editing" @dragstart="dragStart(w.id, $event)" @dragover.prevent="dragOver = w.id" @dragleave="dragOver === w.id && (dragOver = '')" @drop.prevent="dropOn(w.id)" @dragend="dragOver = ''">
+					<div class="wctl" v-if="editing">
+						<span class="wgrip" title="Drag to move"><ico name="grip" /></span><span class="spacer"></span>
+						<button class="wbtn" :disabled="isFirst(w.id)" @click="moveWidget(w.id, -1)" aria-label="Move earlier" title="Move earlier"><ico name="left" /></button>
+						<button class="wbtn" :disabled="isLast(w.id)" @click="moveWidget(w.id, 1)" aria-label="Move later" title="Move later"><ico name="right" /></button>
+						<span class="wsizes" role="group" aria-label="Width"><button v-for="o in WIDTHS" :key="o[0]" :class="{ on: w.w === o[0] }" @click="setWidth(w.id, o[0])" :title="o[2]">{{ o[1] }}</button></span>
+						<button class="wbtn" @click="toggleWidget(w.id)" aria-label="Hide this" title="Hide this"><ico name="x" /></button>
+					</div>
+<template v-if="w.id === 'sent_by_day'">
 						<header><div><h3>Messages sent by day</h3><div class="sub">{{ num(nurTotalSent) }} sent in this period</div></div><a class="btn small" :href="campaignUrl('')" target="_blank" rel="noopener"><ico name="external" /> Campaign Manager</a></header>
 						<bar-chart :labels="nurDayLabels" :series="nurSeries" />
 						<div class="legend"><span v-for="s in nurSeries" :key="s.name"><i :style="{ background: s.color }"></i>{{ s.name }}</span></div>
-					</section>
-					<section class="panel">
+					</template>
+<template v-else-if="w.id === 'status'">
 						<header><div><h3>Campaign status</h3><div class="sub">{{ num(nur.totals.campaigns) }} in this period</div></div></header>
 						<div class="donut-row" v-if="statusDonut.length">
 							<donut :items="statusDonut" centre="campaigns" />
 							<ul class="key"><li v-for="o in statusDonut" :key="o.label"><i :style="{ background: o.color }"></i><span class="k">{{ o.label }}</span><b>{{ o.value }}</b></li></ul>
 						</div>
 						<div class="chart-empty" v-else>No campaigns in this period</div>
-					</section>
-				</div>
-
-				<div class="grid two">
-					<section class="panel">
+					</template>
+<template v-else-if="w.id === 'funnel'">
 						<header>
 							<div><h3>Engagement funnel</h3><div class="sub">Sent, delivered, read and replied</div></div>
 							<div class="seg"><button :class="{ on: funnelChannel === 'all' }" @click="funnelChannel = 'all'">All</button><button :class="{ on: funnelChannel === 'Email' }" @click="funnelChannel = 'Email'">Email</button><button :class="{ on: funnelChannel === 'WhatsApp' }" @click="funnelChannel = 'WhatsApp'">WhatsApp</button></div>
@@ -691,8 +800,8 @@
 								<div class="ftrack"><i :style="{ width: s.width + '%', opacity: 1 - i * 0.14 }"></i></div>
 							</div>
 						</div>
-					</section>
-					<section class="panel">
+					</template>
+<template v-else-if="w.id === 'channels'">
 						<header><div><h3>Email vs WhatsApp</h3><div class="sub">What each channel delivered in this period</div></div></header>
 						<div class="table-wrap">
 							<table class="team plain nur-chan">
@@ -709,11 +818,8 @@
 							</table>
 						</div>
 						<div class="sub nur-foot">Delivery is reported for WhatsApp only. Email opens are shown when open tracking is on for the outgoing email account.</div>
-					</section>
-				</div>
-
-				<div class="grid two-one">
-					<section class="panel">
+					</template>
+<template v-else-if="w.id === 'top'">
 						<header><div><h3>Top campaigns</h3><div class="sub">Most messages sent in this period. Click one to open it in the Campaign Manager.</div></div></header>
 						<div class="table-wrap" v-if="nur.top_campaigns.length">
 							<table class="team plain nur-top">
@@ -728,16 +834,17 @@
 							</table>
 						</div>
 						<div class="chart-empty" v-else>No messages were sent in this period</div>
-					</section>
-					<section class="panel">
+					</template>
+<template v-else-if="w.id === 'nurtured'">
 						<header><div><h3>Leads nurtured</h3><div class="sub">Open leads that received a campaign message in this period</div></div></header>
 						<div class="donut-row" v-if="nur.nurtured.open_leads">
 							<donut :items="nurturedItems" centre="open leads" :size="150" />
 							<ul class="key"><li v-for="o in nurturedItems" :key="o.label"><i :style="{ background: o.color }"></i><span class="k">{{ o.label }}</span><b>{{ num(o.value) }}</b><span class="sub">{{ pct1(o.value, nur.nurtured.open_leads) }}%</span></li></ul>
 						</div>
 						<div class="chart-empty" v-else>No open leads</div>
-					</section>
-				</div>
+					</template>
+			</section>
+		</div>
 			</template>
 		</template>
 		<template v-else-if="!nurError">
@@ -747,16 +854,24 @@
 	</main>
 
 	<main class="dash-body" v-else-if="data">
-		<section class="kpis">
-			<div class="kpi" v-for="c in cards" :key="c.label" :class="c.tone">
+		<section class="kpis" v-if="shownCards.length">
+			<div class="kpi" v-for="c in shownCards" :key="c.id" :class="c.tone">
 				<div class="kpi-label">{{ c.label }}</div>
 				<div class="kpi-value">{{ c.value }}<span class="delta" v-if="c.delta" :class="c.delta.up ? 'up' : 'down'">{{ c.delta.up ? '▲' : '▼' }} {{ c.delta.text }}</span></div>
 				<div class="kpi-sub" :class="c.subTone">{{ c.sub }}</div>
 			</div>
 		</section>
 
-		<div class="grid two-one">
-			<section class="panel">
+		<div class="wgrid">
+			<section v-for="w in shownWidgets" :key="w.id" class="panel widget" :class="{ editing: editing, over: dragOver === w.id }" :style="{ gridColumn: 'span ' + w.w }" :draggable="editing" @dragstart="dragStart(w.id, $event)" @dragover.prevent="dragOver = w.id" @dragleave="dragOver === w.id && (dragOver = '')" @drop.prevent="dropOn(w.id)" @dragend="dragOver = ''">
+				<div class="wctl" v-if="editing">
+					<span class="wgrip" title="Drag to move"><ico name="grip" /></span><span class="spacer"></span>
+					<button class="wbtn" :disabled="isFirst(w.id)" @click="moveWidget(w.id, -1)" aria-label="Move earlier" title="Move earlier"><ico name="left" /></button>
+					<button class="wbtn" :disabled="isLast(w.id)" @click="moveWidget(w.id, 1)" aria-label="Move later" title="Move later"><ico name="right" /></button>
+					<span class="wsizes" role="group" aria-label="Width"><button v-for="o in WIDTHS" :key="o[0]" :class="{ on: w.w === o[0] }" @click="setWidth(w.id, o[0])" :title="o[2]">{{ o[1] }}</button></span>
+					<button class="wbtn" @click="toggleWidget(w.id)" aria-label="Hide this" title="Hide this"><ico name="x" /></button>
+				</div>
+<template v-if="w.id === 'daily'">
 				<header>
 					<div><h3>Daily activity</h3><div class="sub">{{ num(chartTotal) }} in this period</div></div>
 					<div class="ctl">
@@ -766,19 +881,16 @@
 				</header>
 				<bar-chart :labels="dayLabels" :series="seriesData" />
 				<div class="legend"><span v-for="s in seriesData" :key="s.name"><i :style="{ background: s.color }"></i>{{ s.name }}</span></div>
-			</section>
-			<section class="panel">
+			</template>
+<template v-else-if="w.id === 'outcomes'">
 				<header><div><h3>Call outcomes</h3><div class="sub">{{ num(outcomeTotal) }} calls</div></div></header>
 				<div class="donut-row" v-if="outcomeTotal">
 					<donut :items="outcomeItems" centre="calls" />
 					<ul class="key"><li v-for="o in outcomeItems" :key="o.label"><i :style="{ background: o.color }"></i><span class="k">{{ o.label }}</span><b>{{ o.value }}</b><span class="sub">{{ pct(o.value, outcomeTotal) }}%</span></li></ul>
 				</div>
 				<div class="chart-empty" v-else>No calls in this period</div>
-			</section>
-		</div>
-
-		<div class="grid two">
-			<section class="panel">
+			</template>
+<template v-else-if="w.id === 'funnel'">
 				<header><div><h3>Lead funnel</h3><div class="sub">What became of the leads added in this period</div></div></header>
 				<div class="funnel">
 					<div class="frow" v-for="(s, i) in funnel" :key="s.stage">
@@ -786,16 +898,13 @@
 						<div class="ftrack"><i :style="{ width: s.width + '%', opacity: 1 - i * 0.14 }"></i></div>
 					</div>
 				</div>
-			</section>
-			<section class="panel">
+			</template>
+<template v-else-if="w.id === 'hours'">
 				<header><div><h3>Calls by hour</h3><div class="sub" v-if="bestHour">Best time to call: <b>{{ bestHour.name }}</b> - {{ bestHour.rate }}% connected ({{ bestHour.calls }} calls)</div><div class="sub" v-else>Connected and not connected, by hour of the day</div></div></header>
 				<bar-chart :labels="hourLabels" :series="hourSeries" :height="220" />
 				<div class="legend"><span><i style="background:#16a34a"></i>Connected</span><span><i style="background:#f0776a"></i>Not connected</span></div>
-			</section>
-		</div>
-
-		<template v-if="showTeam">
-			<section class="panel">
+			</template>
+<template v-else-if="w.id === 'team'">
 				<header><div><h3>Team performance</h3><div class="sub">Click a column to sort</div></div></header>
 				<div class="table-wrap">
 					<table class="team">
@@ -806,14 +915,14 @@
 								<td class="bar-cell"><div class="mini"><i :style="{ width: (p.calls / maxCalls) * 100 + '%' }"></i></div><b>{{ p.calls }}</b></td>
 								<td>{{ p.connected }}</td>
 								<td><span class="pill-rate" :class="rateTone(p.connect_rate, p.calls)">{{ p.calls ? p.connect_rate + '%' : '-' }}</span></td>
-								<td>{{ p.not_picked }}</td><td>{{ p.follow_ups }}</td><td>{{ p.leads }}</td><td>{{ p.meetings }}<span class="sub" v-if="p.held"> ({{ p.held }})</span></td><td>{{ p.converted }}</td>
+								<td>{{ p.not_picked }}</td><td>{{ p.follow_ups }}</td><td>{{ p.leads }}</td><td>{{ p.meetings }}<span class="sub" v-if="p.held"> ({{ p.held }})</span></td><td v-if="deals">{{ p.converted }}</td>
 								<td>{{ p.due_today }}</td><td :class="{ late: p.overdue }">{{ p.overdue }}</td>
 							</tr>
 						</tbody>
 					</table>
 				</div>
-			</section>
-			<section class="panel">
+			</template>
+<template v-else-if="w.id === 'mix'">
 				<header><div><h3>Call outcomes by person</h3><div class="sub">How each person's calls ended</div></div></header>
 				<div class="hbars" v-if="mixRows.length">
 					<div class="hrow wide" v-for="r in mixRows" :key="r.name"><span class="hname">{{ r.name }}</span>
@@ -822,11 +931,8 @@
 					<div class="legend"><span v-for="(c, k) in OUTCOME_COLORS" :key="k"><i :style="{ background: c }"></i>{{ k }}</span></div>
 				</div>
 				<div class="chart-empty" v-else>No calls in this period</div>
-			</section>
-		</template>
-
-		<div class="grid two">
-			<section class="panel">
+			</template>
+<template v-else-if="w.id === 'pipeline'">
 				<header><div><h3>Lead pipeline</h3><div class="sub">{{ num(statusTotal) }} open leads, by status</div></div></header>
 				<div class="table-wrap" v-if="statusRows.length">
 					<table class="team plain">
@@ -840,41 +946,35 @@
 					</table>
 				</div>
 				<div class="chart-empty" v-else>No open leads</div>
-			</section>
-			<section class="panel">
-				<header><div><h3>Leads by source</h3><div class="sub">Added in this period, and how many became deals</div></div></header>
+			</template>
+<template v-else-if="w.id === 'sources'">
+				<header><div><h3>Leads by source</h3><div class="sub">Added in this period{{ deals ? ', and how many became deals' : '' }}</div></div></header>
 				<div class="hbars" v-if="sourceRows.length">
-					<div class="hrow" v-for="s in sourceRows" :key="s.source"><span class="hname">{{ s.source }}</span><div class="htrack"><i :style="{ width: (s.leads / sourceMax) * 100 + '%', background: '#2563eb' }"></i></div><b>{{ s.leads }}<span class="sub" v-if="s.converted"> · {{ s.converted }} won</span></b></div>
+					<div class="hrow" v-for="s in sourceRows" :key="s.source"><span class="hname">{{ s.source }}</span><div class="htrack"><i :style="{ width: (s.leads / sourceMax) * 100 + '%', background: '#2563eb' }"></i></div><b>{{ s.leads }}<span class="sub" v-if="deals && s.converted"> · {{ s.converted }} won</span></b></div>
 				</div>
 				<div class="chart-empty" v-else>No leads added in this period</div>
-			</section>
-		</div>
-
-		<div class="grid three">
-			<section class="panel">
+			</template>
+<template v-else-if="w.id === 'attempts'">
 				<header><div><h3>Attempts to connect</h3><div class="sub">Which call reached the person</div></div></header>
 				<bar-chart :labels="attemptLabels" :series="attemptSeries" :height="200" />
-			</section>
-			<section class="panel">
+			</template>
+<template v-else-if="w.id === 'temperature'">
 				<header><div><h3>Lead temperature</h3><div class="sub">From the lead score</div></div></header>
 				<div class="donut-row" v-if="bandItems.some((b) => b.value)">
 					<donut :items="bandItems" centre="leads" :size="140" />
 					<ul class="key"><li v-for="b in bandItems" :key="b.label"><i :style="{ background: b.color }"></i><span class="k">{{ b.label }}</span><b>{{ b.value }}</b></li></ul>
 				</div>
 				<div class="chart-empty" v-else>No scored leads yet</div>
-			</section>
-			<section class="panel">
+			</template>
+<template v-else-if="w.id === 'meet_outcome'">
 				<header><div><h3>Meetings by outcome</h3><div class="sub">{{ num(meetingTotal) }} in this period</div></div></header>
 				<div class="donut-row" v-if="meetingTotal">
 					<donut :items="meetingItems" centre="meetings" :size="140" />
 					<ul class="key"><li v-for="m in meetingItems" :key="m.label"><i :style="{ background: m.color }"></i><span class="k">{{ m.label }}</span><b>{{ m.value }}</b></li></ul>
 				</div>
 				<div class="chart-empty" v-else>No meetings in this period</div>
-			</section>
-		</div>
-
-		<div class="grid three">
-			<section class="panel">
+			</template>
+<template v-else-if="w.id === 'queue'">
 				<header><div><h3>Follow-up queue</h3><div class="sub">Overdue and due today</div></div></header>
 				<div class="rows" v-if="data.queue.length">
 					<a class="qrow" v-for="q in data.queue" :key="q.name" href="#" @click.prevent="open(q.url)">
@@ -884,8 +984,8 @@
 					</a>
 				</div>
 				<div class="chart-empty" v-else>Nothing overdue or due today</div>
-			</section>
-			<section class="panel">
+			</template>
+<template v-else-if="w.id === 'recent'">
 				<header><div><h3>Recent calls</h3><div class="sub">Latest in this period</div></div></header>
 				<div class="rows" v-if="data.recent.length">
 					<a class="qrow" v-for="r in data.recent" :key="r.name" href="#" @click.prevent="open(r.url)">
@@ -894,8 +994,8 @@
 					</a>
 				</div>
 				<div class="chart-empty" v-else>No calls in this period</div>
-			</section>
-			<section class="panel">
+			</template>
+<template v-else-if="w.id === 'upcoming'">
 				<header><div><h3>Upcoming meetings</h3><div class="sub">Next 7 days</div></div></header>
 				<div class="rows" v-if="data.upcoming_meetings.length">
 					<a class="qrow" v-for="m in data.upcoming_meetings" :key="m.name" href="#" @click.prevent="open(m.url)">
@@ -904,6 +1004,7 @@
 					</a>
 				</div>
 				<div class="chart-empty" v-else>No meetings coming up</div>
+			</template>
 			</section>
 		</div>
 	</main>

@@ -54,10 +54,10 @@ class TestSetupPage(Base):
 			setup_page.save_setup(json.dumps({"reminder_minutes_before": -5}))
 
 	def test_only_a_system_manager_may_use_it(self):
-		frappe.flags.in_test = False
+		users = [self.make_user(email, role) for role, email in (("Sales Manager", "sm.setup@example.org"), ("Sales User", "su.setup@example.org"))]
+		frappe.flags.in_test = False  # (users first: with the flag off, a site that can send mail commits when it creates one)
 		self.addCleanup(setattr, frappe.flags, "in_test", True)
-		for role, email in (("Sales Manager", "sm.setup@example.org"), ("Sales User", "su.setup@example.org")):
-			user = self.make_user(email, role)
+		for user in users:
 			frappe.set_user(user.name)
 			for call in (setup_page.get_setup, lambda: setup_page.save_setup("{}")):
 				with self.assertRaises(frappe.PermissionError):

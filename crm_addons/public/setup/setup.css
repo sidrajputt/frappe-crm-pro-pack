@@ -107,3 +107,47 @@ input.inp[type="text"] { width: 190px; }
 	.row-i { grid-template-columns: minmax(0, 1fr); } .row-c { justify-content: flex-start; }
 	.chk-b { padding-left: 18px; } .info-pop { position: fixed; left: 16px !important; right: 16px !important; top: auto; bottom: 90px; width: auto; max-width: none; }
 }
+
+/* ---------------------------------------------------------------- one look with the Campaign Manager and the dashboards:
+ * indigo ink, a marigold rule for the open section, flat ruled lists instead of stacked cards, no all-caps labels */
+:root { --bg: #eff1f6; --bg-soft: #f6f7fb; --hover: #e6e9f2; --input: #eceff6; --border: #dde1ec; --border-strong: #c8cedd; --text: #141a33; --soft: #4a5170; --faint: #7d84a0; --primary: #2d36a3; --primary-text: #fff; --accent: #2d36a3; --accent-soft: #e8eafb; --signal: #d99200; --font: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; --shadow: none; }
+:root[data-theme="dark"] { --bg: #0d1020; --bg-soft: #12162a; --surface: #161a2c; --hover: #1d2240; --input: #1d2240; --border: #272d47; --border-strong: #38406a; --text: #e8eaf6; --soft: #b0b6d6; --faint: #7f87ad; --primary: #8a96ff; --primary-text: #0d1020; --accent: #8a96ff; --accent-soft: #202650; --signal: #f0b429; }
+body, button, input, select, textarea { font-family: var(--font); }
+h1, h2, h3 { font-stretch: 90%; }
+.top h1 { font-size: 22px; font-weight: 650; letter-spacing: -.015em; }
+.btn { border-radius: 6px; } .btn.primary:hover:not(:disabled) { filter: brightness(1.12); }
+.search, .inp { border-radius: 6px; }
+.inp:focus, .search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+:focus-visible { outline-color: var(--accent); }
+
+/* left list: flat, the open section marked by a marigold rule */
+.side-h { text-transform: none; letter-spacing: 0; font-size: 12.5px; font-weight: 600; color: var(--soft); margin-top: 16px; }
+.tabb { position: relative; height: 36px; border-radius: 6px; }
+.tabb.on { background: var(--surface); box-shadow: none; }
+.tabb.on::before { content: ""; position: absolute; left: -12px; top: 6px; bottom: 6px; width: 3px; border-radius: 2px; background: var(--signal); }
+.tabb.on .ico:first-child { color: var(--accent); }
+.pill { border-radius: 4px; }
+
+/* cards: one flat surface, rows divided by rules */
+.card { border-radius: 8px; box-shadow: none; }
+.card.pad { padding: 20px 24px; }
+.card h2 { font-size: 18px; font-weight: 650; }
+.sub { text-transform: none; letter-spacing: 0; font-size: 13.5px; font-weight: 650; color: var(--text); }
+.g-i { border-radius: 8px; }
+.prog { height: 6px; border-radius: 3px; } .prog i { background: var(--accent); border-radius: 3px; }
+.stack { gap: 0; }
+.stack > .card.chk { border-radius: 0; border-top-width: 0; } .stack > .card:first-child { border-top-width: 1px; border-radius: 8px 8px 0 0; } .stack > .card:last-child { border-radius: 0 0 8px 8px; }
+.stack > .card:first-child:last-child { border-radius: 8px; }
+.stack > .card.pad:first-child + .card.chk { border-top-width: 1px; }
+.chk-h { border-radius: 0; } .chk-h:hover { background: var(--bg-soft); }
+.chk-i { border-radius: 6px; } .chk.ok .chk-i, .chk.todo .chk-i { border-radius: 6px; }
+.row-i { border-radius: 0; }
+.row-i.child { border-left-color: var(--border-strong); }
+.sw-k { border-radius: 4px; } .sw-k::after { border-radius: 2px; box-shadow: none; }
+.sw.on .sw-k { background: var(--accent); } .sw.on { color: var(--accent); }
+:root[data-theme="dark"] .sw-k::after { background: #0d1020; }
+.info-b { border-radius: 4px; } .info-pop { border-radius: 8px; } .info-p.note { border-radius: 4px; }
+.note-box { border-radius: 4px; }
+.savebar { box-shadow: none; } .savebar-in { padding: 12px 24px; }
+.toast { border-radius: 6px; }
+@media (max-width: 860px) { .tabb.on::before { display: none; } .tabb { border-radius: 6px; } }

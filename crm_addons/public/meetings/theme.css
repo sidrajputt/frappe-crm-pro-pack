@@ -1,0 +1,88 @@
+/* CRM Pro Pack - one look across the Meetings page, the Schedule and Follow-up windows, and the dashboards:
+ * indigo ink on a cool grey page, a marigold rule for "where you are", squarer corners, no all-caps labels.
+ * Loaded after app.css, so it only has to say what is different. */
+:root {
+	--bg: #eff1f6; --bg-soft: #f6f7fb; --bg-hover: #e6e9f2; --surface: #fff; --input: #eceff6; --input-hover: #e2e6f1;
+	--border: #dde1ec; --border-strong: #c8cedd; --ring: #2d36a3;
+	--text: #141a33; --text-soft: #4a5170; --text-faint: #7d84a0;
+	--primary: #2d36a3; --primary-text: #fff; --accent: #2d36a3; --accent-soft: #e8eafb; --accent-text: #252d8c;
+	--signal: #d99200; --radius: 8px;
+	--font: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+}
+:root[data-theme="dark"] {
+	--bg: #0d1020; --bg-soft: #12162a; --bg-hover: #1d2240; --surface: #161a2c; --input: #1d2240; --input-hover: #252b4d;
+	--border: #272d47; --border-strong: #38406a; --ring: #8a96ff;
+	--text: #e8eaf6; --text-soft: #b0b6d6; --text-faint: #7f87ad;
+	--primary: #8a96ff; --primary-text: #0d1020; --accent: #8a96ff; --accent-soft: #202650; --accent-text: #b4bcff; --signal: #f0b429;
+}
+body, button, input, select, textarea { font-family: var(--font); }
+body { font-variant-numeric: tabular-nums; }
+h1, h2, h3 { font-stretch: 90%; }
+
+/* controls: 6px corners, indigo focus */
+.btn, .control, .pick-btn, .linkbox, .record-lock, .tags, .notice, .banner { border-radius: 6px; }
+.btn { height: 34px; }
+.btn.small { height: 28px; }
+.btn.primary:hover { opacity: 1; filter: brightness(1.12); }
+.control:focus, .control:focus-within, .tags:focus-within, .pick-btn:focus-visible, .pick-btn.open { border-color: var(--ring); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 20%, transparent); }
+:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.seg { border-radius: 6px; } .seg button { border-radius: 4px; } .seg button.on { color: var(--accent-text); box-shadow: 0 0 0 1px var(--border); }
+:root[data-theme="dark"] .seg button.on { background: var(--surface); }
+.check input { accent-color: var(--accent); }
+
+/* top bar */
+.toolbar { background: var(--surface); padding: 10px 20px; }
+.brand-ico { background: var(--accent); color: #fff; border-radius: 8px; }
+:root[data-theme="dark"] .brand-ico { color: #0d1020; }
+.brand h1 { font-size: 18px; font-weight: 650; }
+.navgroup { border-radius: 6px; }
+.stage { background: var(--bg); }
+
+/* agenda: a plain date column, the day in ink, today picked out by a marigold rule */
+.agenda { padding: 12px 24px 32px; }
+.day-group { padding: 16px 0; }
+.day-head { text-align: left; padding-top: 2px; }
+.day-head .dow { font-size: 12.5px; letter-spacing: 0; text-transform: none; color: var(--text-soft); font-weight: 600; }
+.day-head .num { font-size: 28px; font-weight: 600; font-stretch: 88%; letter-spacing: -.02em; }
+.day-head.today .num { display: block; width: auto; height: auto; border-radius: 0; background: none; color: var(--accent); box-shadow: inset 0 -3px 0 var(--signal); width: fit-content; }
+.card { border-radius: 8px; transition: border-color .12s; }
+.card:hover { box-shadow: none; border-color: var(--accent); }
+.card .bar { border-radius: 0; }
+.chip, .badge, .pill, .tag { border-radius: 4px; }
+.badge { padding: 1px 7px; }
+.join { border-radius: 6px; } :root[data-theme="dark"] .join { color: #0d1020; }
+
+/* month / week / day: ruled grid, no caps */
+.dow-row div, .tgrid-head .h .dow { text-transform: none; letter-spacing: 0; font-size: 12.5px; }
+.cell.today .cell-num, .tgrid-head .h.today .num { background: var(--accent); color: #fff; border-radius: 6px; }
+:root[data-theme="dark"] .cell.today .cell-num, :root[data-theme="dark"] .tgrid-head .h.today .num { color: #0d1020; }
+.ev { border-radius: 4px; } .tev { border-radius: 4px; }
+.now-line { background: var(--signal); } .now-line::before { background: var(--signal); }
+
+/* the drawer and the empty page */
+.drawer { background: var(--surface); }
+.empty .big { border-radius: 8px; background: var(--accent-soft); color: var(--accent-text); }
+.empty h3 { font-size: 17px; }
+
+/* windows (Schedule meeting, Add follow-up): flat, ruled sections */
+.overlay { background: rgba(13, 16, 32, .5); }
+.dialog { border-radius: 8px; box-shadow: 0 18px 48px rgba(13, 16, 32, .28); }
+.dialog-head { padding: 16px 16px 6px 22px; }
+.dialog-head h2 { font-size: 19px; font-weight: 650; }
+.dialog-body { padding: 10px 22px 8px; gap: 18px; }
+.dialog-foot { padding: 12px 22px; background: var(--bg-soft); }
+.field .lbl { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+.field input.title { font-size: 21px; font-weight: 600; font-stretch: 92%; border-bottom: 2px solid var(--border-strong); }
+.field input.title:focus { border-color: var(--signal); }
+.pills { gap: 6px; }
+.pill { height: 28px; padding: 0 11px; background: var(--surface); }
+.pill:hover { border-color: var(--accent); color: var(--accent-text); background: var(--accent-soft); }
+.pill.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+:root[data-theme="dark"] .pill.on { color: #0d1020; }
+.chip.attempt { background: var(--accent-soft); color: var(--accent-text); font-weight: 600; }
+.tag { background: var(--surface); }
+.suggest, .pick-pop { border-radius: 8px; }
+.pick-opt, .suggest button { border-radius: 4px; }
+.pick-head { text-transform: none; letter-spacing: 0; font-size: 12px; }
+.notice { background: var(--amber-soft); border-left: 3px solid var(--signal); }
+.toast { border-radius: 6px; }

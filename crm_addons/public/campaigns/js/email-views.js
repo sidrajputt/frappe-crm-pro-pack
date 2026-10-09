@@ -11,7 +11,7 @@
 		{ key: 'html', icon: 'code', title: 'HTML editor', text: 'Paste or write your own HTML with a live preview, formatting and validation.' },
 		{ key: 'rich', icon: 'edit', title: 'Rich text', text: 'Write like a document: bold, links, lists, headings and images.' },
 	]
-	const SAMPLE = { first_name: 'Asha', last_name: 'Sharma', lead_name: 'Asha Sharma', email: 'asha.sharma@example.com', organization: 'Acme Learning', sender_name: 'Rahul Verma', owner_name: 'Rahul Verma', mobile_no: '+91 98765 43210', today: new Date().toLocaleDateString([], { day: 'numeric', month: 'long', year: 'numeric' }) }
+	const SAMPLE = { first_name: 'Siddharth', last_name: 'Singh', lead_name: 'Siddharth Singh', email: 'siddharth.singh@example.com', organization: 'Acme Learning', sender_name: 'Siddharth Singh', owner_name: 'Siddharth Singh', mobile_no: '+91 98765 43210', today: new Date().toLocaleDateString([], { day: 'numeric', month: 'long', year: 'numeric' }) }
 	CM.sampleFill = (s) => String(s || '').replace(/\{\{\s*(\w+)\s*\}\}/g, (_m, k) => SAMPLE[k] ?? '')
 	const isManager = () => !!(CM.shared.config && CM.shared.config.is_manager)
 	const favs = ref(CM.store.json('cm-fav-email', []))
@@ -30,7 +30,7 @@
 			return { r, fromName: computed(() => CM.shared.config && CM.shared.config.sender_name), fromEmail: computed(() => CM.shared.config && CM.shared.config.sender_email) }
 		},
 		template: `
-		<Modal size="xl" :title="title || 'Preview'" subtitle="Shown with sample lead data (Asha Sharma, Acme Learning)." @close="$emit('close')">
+		<Modal size="xl" :title="title || 'Preview'" subtitle="Shown with sample lead data (Siddharth Singh, Acme Learning)." @close="$emit('close')">
 			<div v-if="r.unknown.length" class="alert warn"><Ico name="alert" /><div class="grow">Unknown variable(s): <b>{{ r.unknown.join(', ') }}</b>. They will be sent empty.</div></div>
 			<EmailPreview :subject="r.subject || subject" :html="r.html" :from-name="fromName" :from-email="fromEmail" :loading="r.loading" />
 		</Modal>`,

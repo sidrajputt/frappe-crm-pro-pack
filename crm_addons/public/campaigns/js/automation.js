@@ -88,6 +88,7 @@
 			const a = reactive({ mode: 'CRM Filters', rules: [], saved_view: '', selected: [] })
 			const actions = reactive([]); const steps = reactive([])
 			const condOpen = ref(false); const moreOpen = ref(false)
+			const sel = ref('when') // which step of the flow is open on the right: 'when', 'cond' or an action's uid
 			const campaigns = ref([]); const waTemplates = ref([]); const waLoaded = ref(false)
 			const pickFor = ref(null); const editTpl = reactive({ open: false, name: '', mode: '', index: -1 }); const previewTpl = ref(null)
 			const cfg = computed(() => CM.shared.config || {})
@@ -129,7 +130,7 @@
 			watch(() => form.trigger_event, (v) => { if (!isMessageEvent.value) form.trigger_campaign = ''; if (v !== 'Lead status changed') form.trigger_status = '' })
 
 			// ---- actions
-			const addMenu = computed(() => Object.keys(ACTION_INFO).filter((k) => k !== 'Send messages' || !sends.value).map((k) => ({ label: ACTION_INFO[k].text, icon: ACTION_INFO[k].icon, run: () => addAction(k) })))
+			const addMenu = computed(() => Object.keys(ACTION_INFO).filter((k) => k !== 'Send messages' || !sends.value).map((k) => ({ label: ACTION_INFO[k].text, icon: ACTION_INFO[k].icon, run: () => addActionAndOpen(k) })))
 			function addAction(k) { actions.push(newAction(k)); if (k === 'Send messages' && !steps.length) steps.push(newStep('Email')) }
 			function removeAction(i) { actions.splice(i, 1) }
 			function moveAction(i, d) { const j = i + d; if (j < 0 || j >= actions.length) return; actions.splice(j, 0, actions.splice(i, 1)[0]) }
@@ -185,77 +186,97 @@
 				if (dirty.value && !(await CM.confirm({ title: 'Leave without saving?', message: 'Your changes are not saved yet.', confirmText: 'Leave' }))) return
 				dirty.value = false; CM.go('/automations')
 			}
+			const selAction = computed(() => actions.find((x) => x.uid === sel.value) || null)
+			watch(() => actions.length, () => { if (sel.value !== 'when' && sel.value !== 'cond' && !selAction.value) sel.value = actions.length ? actions[actions.length - 1].uid : 'when' })
+			const whenText = computed(() => {
+				const e = form.trigger_event
+				if (e === 'Lead status changed') return form.trigger_status ? 'Status changes to ' + form.trigger_status : 'A lead\'s status changes'
+				return eventLabel(e)
+			})
+			const condText = computed(() => (!condOpen.value ? 'Every lead' : a.mode === 'Saved Segment' ? (a.saved_view ? 'Saved segment' : 'Choose a segment') : a.rules.length ? a.rules.length + (a.rules.length > 1 ? ' filters' : ' filter') : 'Every lead'))
+			const actionText = (x) => (x.action === 'Send messages' ? (steps.length ? steps.length + (steps.length > 1 ? ' messages' : ' message') + ' (' + (channelsUsed.value.join(' + ') || 'choose a channel') + ')' : 'Choose the messages') : x.action === 'Set lead status' ? 'Status: ' + (x.value || 'choose one') : x.action === 'Create a follow-up' ? 'In ' + (x.value === '' ? '...' : x.value) + ' day(s)' : x.value ? '"' + String(x.value).slice(0, 34) + '"' : 'Write the note')
+			function addActionAndOpen(k) { addAction(k); sel.value = actions[actions.length - 1].uid }
+			function removeSelected() { const i = actions.findIndex((x) => x.uid === sel.value); if (i >= 0) { actions.splice(i, 1); sel.value = actions.length ? actions[Math.max(0, i - 1)].uid : 'when' } }
+			const nodeBad = (key) => tried.value && (key === 'when' ? false : key === 'cond' ? !!errs.value.segment : (() => { const x = actions.find((y) => y.uid === key); return !!x && (!!actionError(x) || (x.action === 'Send messages' && (!!errs.value.messages || !!errs.value.window))) })())
 			const tzOptions = computed(() => tzList().map((z) => ({ value: z, label: z.replace(/_/g, ' ') })))
 			const eventLabel = (k) => { for (const g of GROUPS) { const e = g.events.find((x) => x[0] === k); if (e) return e[1] } return k }
 			const campaignOptions = computed(() => [{ value: '', label: 'Any campaign' }, ...campaigns.value.map((c) => ({ value: c.name, label: c.campaign_name }))])
-			return { id, loading, loadError, saving, dirty, tried, status, form, a, actions, steps, condOpen, moreOpen, campaigns, waTemplates, pickFor, editTpl, previewTpl, cfg, statuses, isMessageEvent, sends, channelsUsed, hasWa, needsConsent, addMenu, addAction, removeAction, moveAction, actionError, toggleChannel, addFollowUp, removeStep, chooseTemplate, picked, createTemplate, editTemplate, tplSaved, errs, firstError, save, leave, tzOptions, eventLabel, campaignOptions, GROUPS, ACTION_INFO, CM, init, go: CM.go }
+			return { sel, selAction, whenText, condText, actionText, removeSelected, nodeBad, id, loading, loadError, saving, dirty, tried, status, form, a, actions, steps, condOpen, moreOpen, campaigns, waTemplates, pickFor, editTpl, previewTpl, cfg, statuses, isMessageEvent, sends, channelsUsed, hasWa, needsConsent, addMenu, addAction, removeAction, moveAction, actionError, toggleChannel, addFollowUp, removeStep, chooseTemplate, picked, createTemplate, editTemplate, tplSaved, errs, firstError, save, leave, tzOptions, eventLabel, campaignOptions, GROUPS, ACTION_INFO, CM, init, go: CM.go }
 		},
 		template: `
 		<div class="page auto-ed">
 			<div v-if="loading" class="col"><Skel w="260" h="30" /><Skel h="120" r="12" /><Skel h="200" r="12" /></div>
 			<ErrorState v-else-if="loadError" :message="loadError" @retry="init" />
 			<template v-else>
-				<div class="row wrap" style="gap:10px"><Btn variant="ghost" icon="arrow-left" @click="leave">Automations</Btn><span class="grow"></span><span v-if="status" class="badge nodot" :class="status === 'On' ? 'green' : status === 'Off' ? 'neutral' : 'amber'">{{ status }}</span><span v-if="dirty" class="small faint">Not saved yet</span></div>
+				<header class="ae-bar">
+					<Btn variant="ghost" icon="arrow-left" aria-label="Back to automations" @click="leave" />
+					<div class="ae-name"><input v-model="form.automation_name" maxlength="140" placeholder="Name this automation" aria-label="Automation name" :class="{ bad: tried && errs.name }" /><div v-if="tried && errs.name" class="err small">{{ errs.name }}</div></div>
+					<span v-if="status" class="badge nodot" :class="status === 'On' ? 'green' : status === 'Off' ? 'neutral' : 'amber'">{{ status }}</span><span v-if="dirty" class="small faint">Not saved</span>
+					<span class="grow"></span>
+					<Btn @click="leave">Cancel</Btn><Btn :loading="saving" icon="save" @click="save()">Save</Btn><Btn v-if="!form.enabled" variant="primary" :loading="saving" icon="zap" @click="save(true)">Save and turn on</Btn>
+				</header>
 
-				<section class="card pad ae-blk">
-					<div class="ae-h"><span class="ae-n">1</span><div class="grow"><h2>Name it</h2></div></div>
-					<Field label="Automation name" required :error="tried && errs.name"><input class="inp" :class="{ bad: tried && errs.name }" v-model="form.automation_name" maxlength="140" placeholder="e.g. Welcome new leads" aria-label="Automation name" /></Field>
-				</section>
+				<div class="flow-grid">
+					<nav class="flow" aria-label="What the automation does">
+						<button type="button" class="fnode" :class="{ on: sel === 'when' }" @click="sel = 'when'"><span class="fi"><Ico name="flag" /></span><span class="ft"><b>When</b><span>{{ whenText }}</span></span></button>
+						<i class="fline"></i>
+						<button type="button" class="fnode soft" :class="{ on: sel === 'cond', bad: nodeBad('cond') }" @click="sel = 'cond'"><span class="fi"><Ico name="filter" /></span><span class="ft"><b>Only if</b><span>{{ condText }}</span></span></button>
+						<template v-for="(x, i) in actions" :key="x.uid">
+							<i class="fline"></i>
+							<button type="button" class="fnode" :class="{ on: sel === x.uid, bad: nodeBad(x.uid) }" @click="sel = x.uid"><span class="fi act"><Ico :name="ACTION_INFO[x.action].icon" /></span><span class="ft"><b>{{ i === 0 ? 'Then' : 'And then' }}</b><span>{{ ACTION_INFO[x.action].text }}<em>{{ actionText(x) }}</em></span></span></button>
+						</template>
+						<i class="fline"></i>
+						<Menu align="left" :items="addMenu"><button type="button" class="fadd"><Ico name="plus" size="sm" /> Add a step</button></Menu>
+						<p v-if="tried && errs.actions && !actions.length" class="err small" style="margin:8px 0 0">{{ errs.actions }}</p>
+					</nav>
 
-				<section class="card pad ae-blk">
-					<div class="ae-h"><span class="ae-n">2</span><div class="grow"><h2>When this happens</h2><p>The event that starts it, for one lead at a time.</p></div></div>
-					<div v-for="g in GROUPS" :key="g.title" class="ae-grp"><div class="lbl">{{ g.title }}</div><div class="ae-evs"><button v-for="e in g.events" :key="e[0]" type="button" class="ae-ev" :class="{ on: form.trigger_event === e[0] }" :aria-pressed="form.trigger_event === e[0]" @click="form.trigger_event = e[0]"><Ico :name="e[2]" size="sm" />{{ e[1] }}</button></div></div>
-					<div v-if="form.trigger_event === 'Lead status changed'" class="ae-sub"><Field label="Changed to" hint="Leave empty to start on any status change."><Dd v-model="form.trigger_status" :options="statuses" allow-empty="Any status" searchable /></Field></div>
-					<div v-if="isMessageEvent" class="ae-sub"><Field label="For messages of" hint="A reply, click or opt-out counts when a message from a campaign reached the lead in the last 30 days."><Dd v-model="form.trigger_campaign" :options="campaignOptions" searchable /></Field></div>
-				</section>
+					<section class="fpanel card">
+						<!-- when -->
+						<template v-if="sel === 'when'">
+							<div class="fp-h"><div class="grow"><h2>When this happens</h2><p>The event that starts the automation, for one lead at a time.</p></div></div>
+							<div v-for="g in GROUPS" :key="g.title" class="ae-grp"><div class="lbl">{{ g.title }}</div><div class="ae-evs"><button v-for="e in g.events" :key="e[0]" type="button" class="ae-ev" :class="{ on: form.trigger_event === e[0] }" :aria-pressed="form.trigger_event === e[0]" @click="form.trigger_event = e[0]"><Ico :name="e[2]" size="sm" />{{ e[1] }}</button></div></div>
+							<div v-if="form.trigger_event === 'Lead status changed'" class="ae-sub"><Field label="Changed to" hint="Leave empty to start on any status change."><Dd v-model="form.trigger_status" :options="statuses" allow-empty="Any status" searchable /></Field></div>
+							<div v-if="isMessageEvent" class="ae-sub"><Field label="For messages of" hint="A reply, click or opt-out counts when a message from a campaign reached the lead in the last 30 days."><Dd v-model="form.trigger_campaign" :options="campaignOptions" searchable /></Field></div>
+						</template>
 
-				<section class="card pad ae-blk">
-					<div class="ae-h"><span class="ae-n">3</span><div class="grow"><h2>Only for leads that match <span class="faint small">optional</span></h2><p>{{ condOpen ? 'The event decides who; these conditions narrow it down.' : 'Without conditions it runs for every lead the event happens to.' }}</p></div><Btn size="sm" :icon="condOpen ? 'x' : 'plus'" @click="condOpen = !condOpen">{{ condOpen ? 'Remove conditions' : 'Add conditions' }}</Btn></div>
-					<template v-if="condOpen"><AudienceBuilder :a="a" :modes="['CRM Filters', 'Saved Segment']" :insight="false" /><div v-if="tried && errs.segment" class="alert err" style="margin-top:10px"><Ico name="alert" /><div class="grow">{{ errs.segment }}</div></div></template>
-				</section>
+						<!-- only if -->
+						<template v-else-if="sel === 'cond'">
+							<div class="fp-h"><div class="grow"><h2>Only if the lead matches</h2><p>{{ condOpen ? 'The event decides who; these conditions narrow it down.' : 'No conditions: it runs for every lead the event happens to.' }}</p></div><Btn size="sm" :icon="condOpen ? 'x' : 'plus'" @click="condOpen = !condOpen">{{ condOpen ? 'Remove conditions' : 'Add conditions' }}</Btn></div>
+							<AudienceBuilder v-if="condOpen" :a="a" :modes="['CRM Filters', 'Saved Segment']" :insight="false" />
+							<div v-if="tried && errs.segment" class="alert err"><Ico name="alert" /><div class="grow">{{ errs.segment }}</div></div>
+						</template>
 
-				<section class="card pad ae-blk">
-					<div class="ae-h"><span class="ae-n">4</span><div class="grow"><h2>Then do this</h2><p>Steps run in this order.</p></div></div>
-					<div v-if="tried && errs.actions && !actions.length" class="alert err"><Ico name="alert" /><div class="grow">{{ errs.actions }}</div></div>
-					<div class="col" style="gap:10px">
-						<div v-for="(x, i) in actions" :key="x.uid" class="ae-act" :class="{ bad: tried && actionError(x) }">
-							<div class="ae-act-h"><span class="ae-act-i"><Ico :name="ACTION_INFO[x.action].icon" /></span><div class="grow"><b>{{ ACTION_INFO[x.action].text }}</b><div class="small muted">{{ ACTION_INFO[x.action].hint }}</div></div>
-								<button type="button" class="btn ghost icon sm" :disabled="i === 0" aria-label="Move up" @click="moveAction(i, -1)"><Ico name="arrow-up" /></button><button type="button" class="btn ghost icon sm" :disabled="i === actions.length - 1" aria-label="Move down" @click="moveAction(i, 1)"><Ico name="arrow-down" /></button><button type="button" class="btn ghost icon sm" aria-label="Remove this step" @click="removeAction(i)"><Ico name="trash" /></button></div>
-							<div v-if="x.action === 'Set lead status'" class="ae-act-b"><Dd v-model="x.value" :options="statuses" placeholder="Choose a status" searchable aria-label="Status" /></div>
-							<div v-else-if="x.action === 'Create a follow-up'" class="ae-act-b row" style="gap:8px"><span class="small muted">In</span><input class="inp" style="width:84px" type="number" min="0" max="365" v-model="x.value" aria-label="Days" /><span class="small muted">days, for the owner of the lead</span></div>
-							<div v-else-if="x.action === 'Add a note to the lead'" class="ae-act-b"><input class="inp" v-model="x.value" maxlength="200" placeholder="Note to add on the lead" aria-label="Note" /></div>
-							<div v-if="tried && actionError(x)" class="small" style="color:var(--red);padding:0 14px 10px">{{ actionError(x) }}</div>
-						</div>
-					</div>
-					<div style="margin-top:12px"><Menu align="left" :items="addMenu"><Btn icon="plus">Add a step</Btn></Menu></div>
-
-					<template v-if="sends">
-						<div class="ae-msgs">
-							<div class="ae-h" style="margin-top:6px"><span class="ae-act-i"><Ico name="send" /></span><div class="grow"><h3>The messages</h3><p class="small muted">Sent to each lead that goes through this automation. Follow-up days count from the day the lead joins.</p></div></div>
-							<div class="chan-cards" style="margin-top:12px">
-								<button type="button" class="mcard" :class="{ on: channelsUsed.includes('Email') }" :aria-pressed="channelsUsed.includes('Email')" @click="toggleChannel('Email')"><span class="mi email"><Ico name="mail" size="lg" /></span><span class="grow"><b>Email</b></span><Ico v-if="channelsUsed.includes('Email')" name="check-circle" class="tickc" /></button>
-								<button type="button" class="mcard" :class="{ on: channelsUsed.includes('WhatsApp'), off: cfg.whatsapp && !cfg.whatsapp.installed }" :aria-pressed="channelsUsed.includes('WhatsApp')" :disabled="cfg.whatsapp && !cfg.whatsapp.installed" @click="toggleChannel('WhatsApp')"><span class="mi wa"><Ico name="whatsapp" size="lg" /></span><span class="grow"><b>WhatsApp</b><span class="small muted" style="display:block">{{ cfg.whatsapp && !cfg.whatsapp.installed ? 'frappe_whatsapp is not installed' : '' }}</span></span><Ico v-if="channelsUsed.includes('WhatsApp')" name="check-circle" class="tickc" /></button>
-							</div>
-							<div v-if="tried && errs.messages" class="alert err" style="margin-top:12px"><Ico name="alert" /><div class="grow">{{ errs.messages }}</div></div>
-							<div class="col" style="gap:14px;margin-top:14px">
-								<template v-for="(s, i) in steps" :key="s.uid">
-									<EmailStep v-if="s.channel === 'Email'" :step="s" :index="i" :auto="true" :show-errors="tried" @remove="removeStep(i)" @pick="chooseTemplate(i)" @create="createTemplate(i)" @edit="editTemplate(i)" @preview="previewTpl = s.email_template" />
-									<WaStep v-else :step="s" :index="i" :auto="true" :templates="waTemplates" :show-errors="tried" @remove="removeStep(i)" />
-								</template>
-							</div>
-							<div v-if="steps.length" class="row wrap" style="margin-top:12px"><Menu v-if="channelsUsed.length > 1" align="left" :items="[{ label: 'Email follow-up', icon: 'mail', run: () => addFollowUp('Email') }, { label: 'WhatsApp follow-up', icon: 'whatsapp', run: () => addFollowUp('WhatsApp') }]"><Btn icon="plus">Add a follow-up message</Btn></Menu><Btn v-else icon="plus" @click="addFollowUp(channelsUsed[0])">Add a follow-up message</Btn></div>
-							<details class="more" style="margin-top:16px" :open="moreOpen"><summary><Ico name="chevron-right" size="sm" /> Sending options</summary><div class="col" style="gap:14px;margin-top:12px">
-								<label class="check"><input type="checkbox" v-model="form.window_enabled" /><span>Only send during these hours<span class="small muted" style="display:block">Anything due outside them waits until they open.</span></span></label>
-								<div v-if="form.window_enabled" class="sched"><Field label="From" :error="tried && errs.window"><input class="inp" type="time" v-model="form.window_start" /></Field><Field label="Until"><input class="inp" type="time" v-model="form.window_end" /></Field><div class="small muted" style="align-self:end;padding-bottom:10px">Times are in Indian time (IST).</div><label class="check"><input type="checkbox" v-model="form.window_weekdays_only" /><span>Monday to Friday only</span></label></div>
-								<label v-if="channelsUsed.includes('Email')" class="check"><input type="checkbox" v-model="form.track_clicks" /><span>Track link clicks in emails</span></label>
-								<label class="check"><input type="checkbox" v-model="form.stop_on_reply" :disabled="steps.length < 2" /><span>Stop the sequence for a lead who replies<span class="small muted" style="display:block">{{ steps.length < 2 ? 'Available with follow-up messages.' : 'Later messages are skipped once the lead writes back.' }}</span></span></label>
-								<label v-if="needsConsent" class="check"><input type="checkbox" v-model="form.consent_confirmed" /><span>I confirm these leads agreed to receive WhatsApp messages<span class="small muted" style="display:block">Without this, only leads marked as opted in are messaged on WhatsApp.</span></span></label>
-							</div></details>
-						</div>
-					</template>
-				</section>
-
-				<footer class="wz-nav"><Btn @click="leave">Cancel</Btn><span class="grow"></span><Btn :loading="saving" icon="save" @click="save()">Save</Btn><Btn v-if="!form.enabled" variant="primary" :loading="saving" icon="zap" @click="save(true)">Save and turn on</Btn></footer>
+						<!-- an action -->
+						<template v-else-if="selAction">
+							<div class="fp-h"><span class="ae-act-i"><Ico :name="ACTION_INFO[selAction.action].icon" /></span><div class="grow"><h2>{{ ACTION_INFO[selAction.action].text }}</h2><p>{{ ACTION_INFO[selAction.action].hint }}</p></div>
+								<button type="button" class="btn ghost icon sm" :disabled="actions.indexOf(selAction) === 0" aria-label="Move earlier" @click="moveAction(actions.indexOf(selAction), -1)"><Ico name="arrow-up" /></button><button type="button" class="btn ghost icon sm" :disabled="actions.indexOf(selAction) === actions.length - 1" aria-label="Move later" @click="moveAction(actions.indexOf(selAction), 1)"><Ico name="arrow-down" /></button><button type="button" class="btn ghost icon sm" aria-label="Remove this step" @click="removeSelected"><Ico name="trash" /></button></div>
+							<div v-if="selAction.action === 'Set lead status'"><Field label="Status" :error="tried && actionError(selAction)"><Dd v-model="selAction.value" :options="statuses" placeholder="Choose a status" searchable aria-label="Status" /></Field></div>
+							<div v-else-if="selAction.action === 'Create a follow-up'"><Field label="Follow-up for the lead owner" :error="tried && actionError(selAction)"><div class="row" style="gap:8px"><span class="small muted">In</span><input class="inp" style="width:84px" type="number" min="0" max="365" v-model="selAction.value" aria-label="Days" /><span class="small muted">days from now</span></div></Field></div>
+							<div v-else-if="selAction.action === 'Add a note to the lead'"><Field label="Note" :error="tried && actionError(selAction)"><input class="inp" v-model="selAction.value" maxlength="200" placeholder="Note to add on the lead" aria-label="Note" /></Field></div>
+							<template v-else>
+								<div class="chan-cards">
+									<button type="button" class="mcard" :class="{ on: channelsUsed.includes('Email') }" :aria-pressed="channelsUsed.includes('Email')" @click="toggleChannel('Email')"><span class="mi email"><Ico name="mail" size="lg" /></span><span class="grow"><b>Email</b></span><Ico v-if="channelsUsed.includes('Email')" name="check-circle" class="tickc" /></button>
+									<button type="button" class="mcard" :class="{ on: channelsUsed.includes('WhatsApp'), off: cfg.whatsapp && !cfg.whatsapp.installed }" :aria-pressed="channelsUsed.includes('WhatsApp')" :disabled="cfg.whatsapp && !cfg.whatsapp.installed" @click="toggleChannel('WhatsApp')"><span class="mi wa"><Ico name="whatsapp" size="lg" /></span><span class="grow"><b>WhatsApp</b><span class="small muted" style="display:block">{{ cfg.whatsapp && !cfg.whatsapp.installed ? 'frappe_whatsapp is not installed' : '' }}</span></span><Ico v-if="channelsUsed.includes('WhatsApp')" name="check-circle" class="tickc" /></button>
+								</div>
+								<div v-if="tried && errs.messages" class="alert err"><Ico name="alert" /><div class="grow">{{ errs.messages }}</div></div>
+								<div class="col" style="gap:14px">
+									<template v-for="(s, i) in steps" :key="s.uid">
+										<EmailStep v-if="s.channel === 'Email'" :step="s" :index="i" :auto="true" :show-errors="tried" @remove="removeStep(i)" @pick="chooseTemplate(i)" @create="createTemplate(i)" @edit="editTemplate(i)" @preview="previewTpl = s.email_template" />
+										<WaStep v-else :step="s" :index="i" :auto="true" :templates="waTemplates" :show-errors="tried" @remove="removeStep(i)" />
+									</template>
+								</div>
+								<div v-if="steps.length" class="row wrap"><Menu v-if="channelsUsed.length > 1" align="left" :items="[{ label: 'Email follow-up', icon: 'mail', run: () => addFollowUp('Email') }, { label: 'WhatsApp follow-up', icon: 'whatsapp', run: () => addFollowUp('WhatsApp') }]"><Btn icon="plus">Add a follow-up message</Btn></Menu><Btn v-else icon="plus" @click="addFollowUp(channelsUsed[0])">Add a follow-up message</Btn></div>
+								<details class="more" :open="moreOpen"><summary><Ico name="chevron-right" size="sm" /> Sending options</summary><div class="col" style="gap:14px;margin-top:12px">
+									<label class="check"><input type="checkbox" v-model="form.window_enabled" /><span>Only send during these hours (Indian time)<span class="small muted" style="display:block">Anything due outside them waits until they open.</span></span></label>
+									<div v-if="form.window_enabled" class="sched"><Field label="From" :error="tried && errs.window"><input class="inp" type="time" v-model="form.window_start" /></Field><Field label="Until"><input class="inp" type="time" v-model="form.window_end" /></Field><label class="check" style="align-self:end;padding-bottom:10px"><input type="checkbox" v-model="form.window_weekdays_only" /><span>Monday to Friday only</span></label></div>
+									<label v-if="channelsUsed.includes('Email')" class="check"><input type="checkbox" v-model="form.track_clicks" /><span>Track link clicks in emails</span></label>
+									<label class="check"><input type="checkbox" v-model="form.stop_on_reply" :disabled="steps.length < 2" /><span>Stop the sequence for a lead who replies<span class="small muted" style="display:block">{{ steps.length < 2 ? 'Available with follow-up messages.' : 'Later messages are skipped once the lead writes back.' }}</span></span></label>
+									<label v-if="needsConsent" class="check"><input type="checkbox" v-model="form.consent_confirmed" /><span>I confirm these leads agreed to receive WhatsApp messages<span class="small muted" style="display:block">Without this, only leads marked as opted in are messaged on WhatsApp.</span></span></label>
+								</div></details>
+							</template>
+						</template>
+					</section>
+				</div>
 
 				<TemplatePicker v-if="pickFor !== null" title="Choose an email template" subtitle="Shared templates, usable by every campaign and automation." :selected="steps[pickFor] && steps[pickFor].email_template" :allow-create="cfg.is_manager" @pick="picked" @create="createTemplate(pickFor)" @close="pickFor = null" />
 				<TemplateEditor v-if="editTpl.open" embedded :name="editTpl.name || undefined" :mode="editTpl.mode" @saved="tplSaved" @close="editTpl.open = false" />

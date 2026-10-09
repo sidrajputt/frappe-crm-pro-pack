@@ -88,6 +88,12 @@ window.SETUP_SCHEMA = [
 				info: { what: 'Removes the Call Logs link from the left menu.', note: 'Only hides the link; nothing is deleted or blocked.' } },
 			{ k: 'hide_convert_button', t: 'switch', label: 'Hide "Convert to Deal" on Lead pages',
 				info: { what: 'Hides the Convert to Deal button on a Lead page, for teams that only work with leads.', note: 'It finds the button by its label, so check it still hides after a CRM update.' } },
+			{ k: 'hide_lead_calls_tab', t: 'switch', label: 'Hide the Calls tab on Lead pages',
+				info: { what: 'Removes the Calls tab from the row of tabs on a Lead page (Activity, Emails, ...).', note: 'Only hides the tab; nothing is deleted or blocked.' } },
+			{ k: 'hide_lead_tasks_tab', t: 'switch', label: 'Hide the Tasks tab on Lead pages',
+				info: { what: 'Removes the Tasks tab from the row of tabs on a Lead page (Activity, Emails, ...).', note: 'Only hides the tab; nothing is deleted or blocked.' } },
+			{ k: 'hide_lead_notes_tab', t: 'switch', label: 'Hide the Notes tab on Lead pages',
+				info: { what: 'Removes the Notes tab from the row of tabs on a Lead page (Activity, Emails, ...).', note: 'Only hides the tab; nothing is deleted or blocked.' } },
 		],
 	},
 	{

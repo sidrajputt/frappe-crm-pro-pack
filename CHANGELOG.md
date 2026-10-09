@@ -2,6 +2,23 @@
 
 All notable changes to CRM Pro Pack (the `crm_addons` Frappe app).
 
+## 1.2.0 - 2026-10-10
+
+### Changed
+
+- **Sales Dashboard and Campaigns dashboard are customizable.** *Customize* opens a drawer to show or hide each number and chart, reorder them (grip, arrows or
+  drag) and set each chart's width. The layout is saved per user, with *Reset to default*. *Lead Nurturing* is now **Campaigns**, with its own Excel and CSV export.
+- **Deals are left out when you do not use them.** With *Hide Deals menu* on, "Converted to deals" disappears from the dashboard, the funnel and the exports.
+- **Follow-ups** opens straight onto the list; the big Overdue / Due today / Upcoming cards are gone (the tabs carry the counts, with the connect rate beside them).
+- **Automation editor** shows the flow on the left and one step's settings on the right, so it fits one screen. Save buttons stay in a top bar.
+- **Email previews:** the phone preview is a real phone shape (the email scales to fit), the desktop preview a browser window.
+- **Campaign Manager redesign:** flatter layout, indigo and marigold palette, Instrument Sans, tighter audience step, better template builder.
+- Pop-ups (such as *Insert variable*) now stay inside the window.
+- The demo lead everywhere is Siddharth Singh.
+- **Hide the Calls, Tasks and Notes tabs on Lead pages** (three new switches in the setup page, under *Things to hide*).
+- **The same look on the setup page, the Meetings page, and the Schedule meeting and Add follow-up windows**: indigo and marigold, 6px controls, no
+  all-caps labels, a plain date column in the agenda, and the setup checklist as one ruled list.
+
 ## 1.1.1 - 2026-10-09
 
 ### Fixed
@@ -245,7 +262,7 @@ First public release. Built and tested on Frappe v15 with Frappe CRM 1.x.
 - Frappe v15 (tested). Every Frappe API used also exists on v16 and the v17 development branch.
 - Frappe CRM 1.x. CRM 2.0 (Frappe 16 or newer) is best-effort.
 
-## Unreleased - fixes
+## 1.2.0 - 2026-10-10 - fixes
 - Fixed a frozen, blank tab: the Campaign Manager and the Meetings calendar, opened standalone, re-applied their theme attribute to
   a MutationObserver watching that same attribute (in a standalone tab the "parent" is the page itself). Any `storage` event
   (CRM writes localStorage constantly) or switching back to the tab started an endless loop. The theme is now only written when it

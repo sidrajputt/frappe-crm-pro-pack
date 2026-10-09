@@ -447,6 +447,8 @@
 				]
 			})
 			function pickCard(c) { if (c.click) tab.value = c.key }
+			// the numbers the cards used to repeat are in the tabs; the one thing the tabs do not say is how many calls connected
+			const rate = computed(() => { if (!data.value || !data.value.connect || !data.value.connect.calls) return null; const k = data.value.connect, w = data.value.done_window; return { text: (k.rate === null ? '-' : k.rate + '%'), detail: `${num(k.connected)} of ${num(k.calls)} calls`, hint: `${w.from} to ${w.to}` } })
 
 			// ---------- rows
 			const serverNow = computed(() => nowMs.value + serverOffset)
@@ -576,7 +578,7 @@
 
 			return {
 				EMBED, TABS, data, items, loading, more, fatal, toasts, form, frame, busy, selected, tab, scope, scopeModel, owner, outcome, search, view, range, updatedAt, searchBox,
-				isManager, everyone, scopeOptions, ownerOptions, outcomeOptions, subtitle, filtered, clearFilters, cards, pickCard, due, statusColor, outcomeTone,
+				isManager, everyone, scopeOptions, ownerOptions, outcomeOptions, subtitle, filtered, clearFilters, cards, pickCard, rate, due, statusColor, outcomeTone,
 				rows, dayCount, canSelect, selectedNames, allSelected, toggleAll, toggle, markDone, reschedule, bulk, logFor, closeForm, openLead, closeSelf, openFull, emptyText,
 				hasMore, load, loadMore, num, plural,
 			}
@@ -609,18 +611,11 @@
 	<div class="banner fu-banner" v-if="data && !data.enabled">Follow-ups are switched off in CRM Addons Settings. You can still see the ones already logged.</div>
 
 	<main class="dash-body" v-if="data">
-		<section class="kpis fu-kpis">
-			<component :is="c.click ? 'button' : 'div'" v-for="c in cards" :key="c.key" class="kpi fu-kpi" :class="[c.tone, { click: c.click, on: c.click && tab === c.key }]" :title="c.hint" @click="pickCard(c)" :type="c.click ? 'button' : null">
-				<span class="kpi-label">{{ c.label }}</span>
-				<span class="kpi-value">{{ c.value }}</span>
-				<span class="kpi-sub" :class="c.subTone">{{ c.sub }}</span>
-			</component>
-		</section>
-
 		<section class="panel fu-panel" :class="{ busy: loading }">
 			<div class="fu-tabs" role="tablist">
 				<button v-for="t in TABS" :key="t[0]" role="tab" :aria-selected="tab === t[0]" class="fu-tab" :class="[t[0], { on: tab === t[0] }]" @click="tab = t[0]">{{ t[1] }}<span class="count">{{ num(data.counts[t[0]]) }}</span></button>
 				<span class="spacer"></span>
+				<span class="sub fu-rate" v-if="rate" :title="rate.hint">Connect rate <b>{{ rate.text }}</b> <span>{{ rate.detail }}</span></span>
 				<span class="sub fu-total" v-if="items.length">{{ items.length < data.total ? 'Showing ' + num(items.length) + ' of ' + num(data.total) : plural(data.total, 'follow-up') }}</span>
 			</div>
 

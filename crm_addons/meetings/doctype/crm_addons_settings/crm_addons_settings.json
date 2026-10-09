@@ -44,6 +44,9 @@
   "hide_tasks_menu",
   "hide_call_logs_menu",
   "hide_convert_button",
+  "hide_lead_calls_tab",
+  "hide_lead_tasks_tab",
+  "hide_lead_notes_tab",
   "campaigns_section",
   "campaigns_enabled",
   "campaign_batch_size",
@@ -313,6 +316,27 @@
    "label": "Hide the \"Convert to Deal\" button on the Lead page",
    "default": "0",
    "description": "Only hides the button. It matches the button's label, so it may need a look after a CRM update."
+  },
+  {
+   "fieldname": "hide_lead_calls_tab",
+   "fieldtype": "Check",
+   "label": "Hide the \"Calls\" tab on Lead pages",
+   "default": "0",
+   "description": "Only hides the tab. Nothing is deleted or blocked."
+  },
+  {
+   "fieldname": "hide_lead_tasks_tab",
+   "fieldtype": "Check",
+   "label": "Hide the \"Tasks\" tab on Lead pages",
+   "default": "0",
+   "description": "Only hides the tab. Nothing is deleted or blocked."
+  },
+  {
+   "fieldname": "hide_lead_notes_tab",
+   "fieldtype": "Check",
+   "label": "Hide the \"Notes\" tab on Lead pages",
+   "default": "0",
+   "description": "Only hides the tab. Nothing is deleted or blocked."
   },
   {
    "fieldname": "campaigns_section",

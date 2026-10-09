@@ -1081,7 +1081,8 @@ class TestEmailTemplates(UiApi):
 	def test_render_preview_uses_sample_data_and_reports_unknown_variables(self):
 		out = api.render_email_preview("Hi {{ first_name }} {{ nope }}", "<p>{{ organization }} by {{ sender_name }}</p>")
 		self.assertTrue(out["lead"]["sample"])
-		self.assertTrue(out["subject"].startswith("Hi Asha"))
+		self.assertTrue(out["subject"].startswith("Hi Siddharth"))  # the demo lead everywhere is Siddharth Singh
+		self.assertEqual(out["lead"]["lead_name"], "Siddharth Singh")
 		self.assertIn("Acme Learning", out["html"])
 		self.assertEqual(out["unknown"], ["nope"])
 		real = api.render_email_preview("Hi {{ first_name }}", "<p>x</p>", self.leads[0].name)
@@ -1102,8 +1103,8 @@ class TestTestEmail(UiApi):
 		out, mail = self.send("a@example.com, B@Example.com a@example.com")
 		kw = mail.call_args.kwargs
 		self.assertEqual(kw["recipients"], ["a@example.com", "b@example.com"])
-		self.assertEqual(kw["subject"], "[Test] Hello Asha")
-		self.assertIn("Hi Asha", kw["message"])
+		self.assertEqual(kw["subject"], "[Test] Hello Siddharth")
+		self.assertIn("Hi Siddharth", kw["message"])
 		self.assertFalse(kw["delayed"])
 		self.assertNotIn("unsubscribe_method", kw)
 		self.assertEqual(out["sent"], 2)
@@ -1310,7 +1311,7 @@ class TestWhatsAppUi(UiApi):
 			out = api.send_test_whatsapp(step, "98765 43210")
 		payload = fake.update.call_args.args[0]
 		self.assertEqual((payload["to"], payload["template"]), ("919876543210", "WA-T"))
-		self.assertEqual(json.loads(payload["body_param"]), {"1": "Asha"})  # sample lead
+		self.assertEqual(json.loads(payload["body_param"]), {"1": "Siddharth"})  # sample lead
 		self.assertEqual((out["sent"], out["message"]), (1, "WA-T-1"))
 		self.assertEqual(before, frappe.db.count(R))
 		with patch.object(channels.WhatsAppSender, "check_ready"), self.assertRaises(frappe.ValidationError):

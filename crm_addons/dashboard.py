@@ -4,6 +4,8 @@ Every resolver receives ``(from_date, to_date, user)``. CRM passes ``user`` for
 sales users (so they only see their own numbers) and ``None`` for managers.
 """
 
+import json
+
 import frappe
 from frappe import _
 from frappe.utils import add_days, cint, date_diff, get_first_day, get_last_day, getdate, nowdate
@@ -587,7 +589,7 @@ def _count_optouts(start, end, who):
 
 
 @frappe.whitelist()
-def get_nurturing(from_date=None, to_date=None, user=None):
+def get_nurturing(from_date=None, to_date=None, user=None, top_limit=10):
 	"""Campaign analytics for the Lead Nurturing view of the Sales Dashboard.
 
 	Managers see every campaign (and can look at one person's); a sales user only sees what comes from
@@ -629,7 +631,7 @@ def get_nurturing(from_date=None, to_date=None, user=None):
 		from `tabCRM Campaign Recipient` rp join `tabCRM Campaign` c on c.name = rp.campaign
 		where rp.sent_at >= %(s)s and rp.sent_at < %(e)s and rp.status in ('Sent', 'Delivered', 'Read')"""
 		+ scope
-		+ " group by c.name, c.campaign_name, c.status order by sent desc, c.creation desc limit 10",
+		+ " group by c.name, c.campaign_name, c.status order by sent desc, c.creation desc limit " + str(max(1, min(cint(top_limit) or 10, 500))),
 		params,
 		as_dict=True,
 	)
@@ -691,3 +693,66 @@ def get_nurturing(from_date=None, to_date=None, user=None):
 		"tracking": {"email_open": tracking},
 		"has_campaigns": any_campaign,
 	}
+
+
+# -- each person's own dashboard layout ---------------------------------------------------------------------------
+
+LAYOUT_VIEWS = ("sales", "campaigns")
+LAYOUT_WIDTHS = (2, 3, 4, 6)  # of a 6-column grid: a third, a half, two thirds, the full row
+LAYOUT_MAX_ITEMS = 40
+
+
+def _layout_key(view):
+	if view not in LAYOUT_VIEWS:
+		frappe.throw(_("Unknown dashboard view."))
+	return f"crm_addons_dashboard_{view}"
+
+
+def _clean_layout(raw):
+	"""A layout is ``{kpis: [{id, on}], widgets: [{id, w, on}]}``; anything else in it is dropped, not trusted."""
+	import re
+
+	data = frappe.parse_json(raw)
+	if not isinstance(data, dict):
+		frappe.throw(_("The layout is not valid."))
+	ident = re.compile(r"^[a-z0-9_]{1,40}$")
+
+	def items(name, with_width):
+		seen, out = set(), []
+		for row in (data.get(name) or [])[:LAYOUT_MAX_ITEMS]:
+			if not isinstance(row, dict) or not ident.match(str(row.get("id", ""))) or row["id"] in seen:
+				continue
+			seen.add(row["id"])
+			item = {"id": row["id"], "on": 1 if cint(row.get("on", 1)) else 0}
+			if with_width:
+				item["w"] = cint(row.get("w")) if cint(row.get("w")) in LAYOUT_WIDTHS else 3
+			out.append(item)
+		return out
+
+	return {"kpis": items("kpis", False), "widgets": items("widgets", True)}
+
+
+@frappe.whitelist()
+def get_layout(view):
+	"""The signed-in person's saved layout for ``view`` ("sales" or "campaigns"), or None to use the default."""
+	frappe.only_for(NURTURE_ROLES)
+	value = frappe.db.get_value("DefaultValue", {"parent": frappe.session.user, "parenttype": "__default", "defkey": _layout_key(view)}, "defvalue")
+	try:
+		return _clean_layout(value) if value else None
+	except Exception:
+		return None
+
+
+@frappe.whitelist()
+def save_layout(view, layout):
+	frappe.only_for(NURTURE_ROLES)
+	clean = _clean_layout(layout)
+	frappe.defaults.set_user_default(_layout_key(view), json.dumps(clean), frappe.session.user)
+	return clean
+
+
+@frappe.whitelist()
+def reset_layout(view):
+	frappe.only_for(NURTURE_ROLES)
+	frappe.defaults.clear_default(_layout_key(view), parent=frappe.session.user)
+	return None

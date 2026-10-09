@@ -31,7 +31,7 @@
 			const saved = CM.store.json('cm-list-prefs', {})
 			const q = reactive({ search: '', status: '', channel: '', sort: saved.sort || 'modified' })
 			const dateRange = CM.useRange('cm-list-range', 'any') // when the campaign was created
-			const view = ref(saved.view || 'grid')
+			const view = ref(saved.view || 'list')
 			watch([view, () => q.sort], () => CM.store.set('cm-list-prefs', JSON.stringify({ view: view.value, sort: q.sort })))
 			const filtered = computed(() => !!(q.search || q.status || q.channel || dateRange.value.preset !== 'any'))
 			let seq = 0
