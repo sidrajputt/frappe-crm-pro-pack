@@ -2,6 +2,19 @@
 
 All notable changes to CRM Pro Pack (the `crm_addons` Frappe app).
 
+## 1.1.1 - 2026-10-09
+
+### Fixed
+
+- **Insert variable did nothing** (email subject, HTML editor, rich-text editor, email builder, anywhere the *Insert variable* button appears). The button's click
+  handler was shadowed by the pop-up's own `open` flag, so the list never opened. The drop-down used everywhere else had the same mix-up in a milder form (its
+  search box was not cleared and focused on opening); both are fixed.
+- **Every automation run and every lead-update rule logged a spurious error** ("log() got multiple values for argument 'event'"): the diagnostics call used a
+  keyword that clashed with the function's own parameter. The actions themselves had run, but the Error Log filled up. Fixed, and the diagnostics `log()` now
+  accepts any keyword. The tests now fail if the campaign code writes to the Error Log without being asked to.
+- **An automation could be "On" with no messages going out** if its managed campaign was cancelled or ended from the Campaigns page. Saving the automation now
+  starts a fresh campaign (the old one stays as an ordinary campaign with its results).
+
 ## 1.1.0 - 2026-10-08
 
 ### Added: Automations (replaces "automatic campaigns" and the per-campaign lead updates in the wizard)

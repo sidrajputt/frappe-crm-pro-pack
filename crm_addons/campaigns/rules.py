@@ -112,7 +112,7 @@ def _fire_rules(recipient, event):
 		ran = 0
 		for rule in todo:
 			ran += _run(row.campaign, row.recipient_id, event, rule)
-		debuglog.log("RULES", campaign=row.campaign, lead=row.recipient_id, event=event, actions=ran)
+		debuglog.log("RULES", campaign=row.campaign, lead=row.recipient_id, trigger=event, actions=ran)
 		return ran
 	except Exception:
 		frappe.log_error(frappe.get_traceback(), "CRM Campaign: a lead-update rule failed")

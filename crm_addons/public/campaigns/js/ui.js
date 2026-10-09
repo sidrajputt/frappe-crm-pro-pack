@@ -84,7 +84,7 @@
 				else if (e.key === 'Enter') { e.preventDefault(); if (shown.value[hi.value]) pick(shown.value[hi.value]) }
 			}
 			watch(q, () => { hi.value = 0 })
-			return { trig, q, hi, shown, current, toggle, pick, onKey, ...p }
+			return { ...p, trig, q, hi, shown, current, toggle, pick, onKey } // ours last: p has a toggle of its own, and ours also clears the search and focuses it
 		},
 		template: `
 		<div class="dd">
@@ -333,13 +333,13 @@
 					other: list.filter((v) => v.kind === 'field' && !pri.includes(v.name)),
 				}
 			})
-			function open() { q.value = ''; p.toggle(); if (p.open.value) nextTick(() => p.pop.value && p.pop.value.querySelector('input') && p.pop.value.querySelector('input').focus()) }
+			function toggleMenu() { q.value = ''; p.toggle(); if (p.open.value) nextTick(() => p.pop.value && p.pop.value.querySelector('input') && p.pop.value.querySelector('input').focus()) }
 			function pick(v) { emit('pick', '{{ ' + v.name + ' }}', v); p.close() }
-			return { trig, q, vars, open, pick, ...p }
+			return { trig, q, vars, toggleMenu, pick, ...p }
 		},
 		template: `
 		<span style="display:inline-flex">
-			<button ref="trig" type="button" class="btn" :class="size || 'sm'" @mousedown.prevent @click="open"><Ico name="variable" />{{ label }}</button>
+			<button ref="trig" type="button" class="btn" :class="size || 'sm'" @mousedown.prevent @click="toggleMenu"><Ico name="variable" />{{ label }}</button>
 			<Teleport to="body">
 				<div v-if="open" ref="pop" class="pop" :style="style" @mousedown.prevent.self>
 					<div class="pop-search"><input class="inp" style="height:32px" v-model="q" placeholder="Search variables" aria-label="Search variables" /></div>

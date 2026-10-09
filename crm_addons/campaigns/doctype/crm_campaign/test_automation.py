@@ -232,6 +232,19 @@ class TestSendMessages(Autos):
 		frappe.delete_doc(A, doc2.name, ignore_permissions=True)
 		self.assertFalse(frappe.db.exists(C, name2))  # nothing was sent: no trace
 
+	def test_ending_the_managed_campaign_by_hand_does_not_leave_the_automation_on_but_dead(self):
+		doc = self.message_automation(enabled=1)
+		first = doc.campaign
+		engine.cancel(first)
+		doc.reload()
+		doc.description = "touched"
+		doc.save()
+		self.assertNotEqual(doc.campaign, first)
+		self.assertEqual(frappe.db.get_value(C, doc.campaign, "status"), "Running")
+		self.assertFalse(frappe.db.get_value(C, first, "automation"))  # the old one stays as an ordinary, cancelled campaign
+		self.new_lead()
+		self.assertEqual(len(self.rows(doc.campaign)), 1)
+
 	def test_a_campaign_not_ready_to_send_refuses_to_turn_on(self):
 		doc = self.message_automation()
 		doc.enabled = 1

@@ -34,6 +34,13 @@ class Growth(Campaigns):
 		p = patch.object(health, "email_account_problem", return_value=None)  # the test site has no outgoing mail account
 		p.start()
 		self.addCleanup(p.stop)
+		# a swallowed exception is a bug that tests would otherwise never see. The base class replaces ``frappe.log_error``
+		# (it commits), so nothing of ours may call it unless the test provokes an error itself. (Frappe's own calls, such as a
+		# welcome e-mail it cannot send to a new test user, are not ours.)
+		def ours():
+			return [c for c in self.log_error.call_args_list if any(k in str(c) for k in ("CRM Campaign", "CRM Automation", "CRM Add-ons"))]
+
+		self.addCleanup(lambda: self.assertEqual(ours(), [], "unexpected Error Log entry"))
 		self.linked = frappe.get_doc(
 			{"doctype": "CRM Campaign Email Template", "template_name": "Linked Template", "subject": "Offer", "body_html": f'<p>See <a href="{LINK.replace("&", "&amp;")}">the offer</a> or <a href="mailto:a@b.co">mail</a> <a href="#top">top</a></p>', "enabled": 1}
 		).insert(ignore_permissions=True)

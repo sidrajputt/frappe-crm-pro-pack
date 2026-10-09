@@ -175,6 +175,12 @@ def sync(doc):
 		if doc.campaign:
 			_release(doc)
 		return
+	if doc.campaign and frappe.db.exists(CAMPAIGN, doc.campaign) and frappe.db.get_value(CAMPAIGN, doc.campaign, "status") in ("Cancelled", "Completed", "Failed"):
+		# someone ended the managed campaign from the Campaigns page: it keeps its results as an ordinary campaign, and the
+		# automation starts a fresh one so that "On" means what it says
+		frappe.db.set_value(CAMPAIGN, doc.campaign, "automation", None, update_modified=False)
+		doc.db_set("campaign", None, update_modified=False)
+		doc.campaign = None
 	if doc.campaign and frappe.db.exists(CAMPAIGN, doc.campaign):
 		campaign = frappe.get_doc(CAMPAIGN, doc.campaign)
 		_check_structure(doc, campaign)
@@ -297,7 +303,7 @@ def run(name, lead_name, event):
 	done = 0
 	for action in doc.actions:
 		done += _do(doc, lead_name, event, action)
-	debuglog.log("AUTOMATION", automation=name, lead=lead_name, event=event, actions=done)
+	debuglog.log("AUTOMATION", automation=name, lead=lead_name, trigger=event, actions=done)
 	return True
 
 

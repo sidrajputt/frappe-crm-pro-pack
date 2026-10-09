@@ -130,8 +130,8 @@ def _context():
 	return site, user
 
 
-def log(event, level="INFO", **fields):
-	"""One line: time, level, process, thread, site, user, the event, then key=value pairs."""
+def log(event, level="INFO", /, **fields):
+	"""One line: time, level, process, thread, site, user, the event, then key=value pairs (any keyword, including ``event``)."""
 	try:
 		if not enabled():
 			return
