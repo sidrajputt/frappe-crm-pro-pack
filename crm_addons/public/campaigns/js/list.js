@@ -33,6 +33,7 @@
 			const dateRange = CM.useRange('cm-list-range', 'any') // when the campaign was created
 			const view = ref(saved.view || 'list')
 			watch([view, () => q.sort], () => CM.store.set('cm-list-prefs', JSON.stringify({ view: view.value, sort: q.sort })))
+			const canManage = computed(() => !!(CM.shared.config && CM.shared.config.is_manager))
 			const filtered = computed(() => !!(q.search || q.status || q.channel || dateRange.value.preset !== 'any'))
 			let seq = 0
 			let busy = 0 // requests still running: the automatic refresh waits for them instead of piling on
@@ -61,15 +62,16 @@
 				try { await CM.api('delete_campaign', { name: c.name }); CM.toast('Campaign deleted'); load(true) } catch (e) { CM.toast(e.message, 'err') }
 			}
 			function menu(c) {
+				if (!canManage.value) return [{ label: 'Open', icon: 'eye', run: () => open(c) }]
 				const edit = ['Draft', 'Scheduled'].includes(c.status)
 				return [edit ? { label: 'Edit', icon: 'edit', run: () => CM.go('/campaigns/edit/' + encodeURIComponent(c.name)) } : { label: 'Open', icon: 'eye', run: () => open(c) }, { label: 'Duplicate', icon: 'copy', run: () => dup(c) }, ['Draft', 'Cancelled'].includes(c.status) ? { sep: true } : null, ['Draft', 'Cancelled'].includes(c.status) ? { label: 'Delete', icon: 'trash', danger: true, run: () => del(c) } : null]
 			}
 			const when = (c) => (c.send_mode === 'Trigger' ? 'Automatic: ' + (c.trigger_event === 'Lead status changed' ? 'on status change' : 'on new lead') : c.status === 'Scheduled' && c.scheduled_at ? 'Sends ' + CM.fmt(c.scheduled_at) : !['Draft', 'Scheduled'].includes(c.status) && c.started_at ? 'Started ' + CM.fmt(c.started_at) : c.send_mode === 'Schedule' && c.scheduled_at ? 'Scheduled ' + CM.fmt(c.scheduled_at) : 'Not scheduled')
-			return { rows, total, loading, error, page, PAGE, q, dateRange, view, filtered, load, reset, open, menu, when, STATUS_CHIPS, SORTS, CHANNELS, CM, go: CM.go }
+			return { rows, total, loading, error, page, PAGE, q, dateRange, view, filtered, canManage, load, reset, open, menu, when, STATUS_CHIPS, SORTS, CHANNELS, CM, go: CM.go }
 		},
 		template: `
 		<div class="page">
-			<div class="pg-head"><div class="grow"><h1>Campaigns</h1><p>Reach your leads on email and WhatsApp, and see exactly what was sent, delivered and opened.</p></div><div class="actions"><Btn variant="primary" icon="plus" @click="go('/campaigns/new')">Create campaign</Btn></div></div>
+			<div class="pg-head"><div class="grow"><h1>Campaigns</h1><p>Reach your leads on email and WhatsApp, and see exactly what was sent, delivered and opened.</p></div><div v-if="canManage" class="actions"><Btn variant="primary" icon="plus" @click="go('/campaigns/new')">Create campaign</Btn></div></div>
 			<div class="row wrap tool">
 				<div v-if="view !== 'calendar'" style="width:260px;max-width:100%"><Inp v-model="q.search" icon="search" placeholder="Search campaigns" clearable aria-label="Search campaigns" /></div>
 				<div v-if="view !== 'calendar'" style="width:160px"><Dd v-model="q.channel" :options="CHANNELS" placeholder="All channels" allow-empty="All channels" size="sm" aria-label="Channel" /></div>
@@ -87,7 +89,7 @@
 			</template>
 			<ErrorState v-else-if="error" :message="error" @retry="load" />
 			<Empty v-else-if="!rows.length && filtered" icon="search" title="No campaigns match" text="Try removing a filter or searching for something else."><Btn @click="reset">Clear filters</Btn></Empty>
-			<Empty v-else-if="!rows.length" icon="send" title="Create your first campaign" text="Send a WhatsApp message or email to a group of leads, schedule it, and follow the results here."><Btn variant="primary" icon="plus" @click="go('/campaigns/new')">Create campaign</Btn></Empty>
+			<Empty v-else-if="!rows.length" icon="send" :title="canManage ? 'Create your first campaign' : 'No campaigns yet'" :text="canManage ? 'Send a WhatsApp message or email to a group of leads, schedule it, and follow the results here.' : 'Campaigns your team sends will show up here, with what was sent, delivered and opened.'"><Btn v-if="canManage" variant="primary" icon="plus" @click="go('/campaigns/new')">Create campaign</Btn></Empty>
 
 			<div v-else-if="view === 'grid'" class="cgrid">
 				<article v-for="c in rows" :key="c.name" class="ccard card hover" tabindex="0" @click="open(c)" @keydown.enter="open(c)">

@@ -68,9 +68,9 @@ def _rollback():
 
 
 def is_manager(user=None):
-	from crm_addons.utils import is_manager as _is_manager
+	from crm_addons.utils import is_campaign_manager
 
-	return _is_manager(user)
+	return is_campaign_manager(user)
 
 
 def can_act(campaign, user=None):

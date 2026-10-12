@@ -272,7 +272,14 @@ def after_migrate():
 	run_all()
 
 
+def ensure_campaign_role():
+	"""The role that can create and change campaigns without being a Sales Manager."""
+	if not frappe.db.exists("Role", "Campaign Manager"):
+		frappe.get_doc({"doctype": "Role", "role_name": "Campaign Manager", "desk_access": 1}).insert(ignore_permissions=True)
+
+
 def run_all():
+	ensure_campaign_role()
 	if not frappe.db.exists("DocType", "CRM Lead"):
 		return  # Frappe CRM is not on this site
 	ensure_settings()

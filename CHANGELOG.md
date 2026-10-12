@@ -2,6 +2,21 @@
 
 All notable changes to CRM Pro Pack (the `crm_addons` Frappe app).
 
+## 1.3.0 - 2026-10-12
+
+### Added
+
+- **Campaign Manager role.** Only System Managers, Sales Managers and the new *Campaign Manager* role can create, edit and duplicate campaigns,
+  automations and templates, and they see every campaign. Sales Users can only look (campaigns, results, reports, dashboards): the server refuses
+  the writes and the Campaign Manager screens hide the buttons and open the list instead of an editor. A new setup-page option, *Who sees the Campaigns shortcuts*, lets you tick the roles
+  that see the Campaigns button and menu link in CRM (nothing ticked: everyone).
+- Campaign records are now read-only for Sales Users, and clicks can be read by Sales Managers, Sales Users and Campaign Managers (Sales Users no
+  longer get "unable to read campaign").
+
+**Upgrade:** run `bench --site your-site migrate` (it creates the role and updates the permissions), then in Desk give the marketing user the roles
+**Sales User** and **Campaign Manager** (the CRM Users screen only shows Admin, Manager and Sales User). Campaigns a Sales User created earlier stay
+visible to them but they can no longer edit them; a Campaign Manager can.
+
 ## 1.2.0 - 2026-10-10
 
 ### Changed

@@ -1,13 +1,13 @@
-"""Who sees which campaign. Managers see all; everyone else sees what they own or run."""
+"""Who sees which campaign. Managers and Campaign Managers see all; everyone else sees what they own or run."""
 
 import frappe
 
-from crm_addons.utils import is_manager
+from crm_addons.utils import is_campaign_manager
 
 
 def campaign_query_conditions(user=None):
 	user = user or frappe.session.user
-	if is_manager(user):
+	if is_campaign_manager(user):
 		return ""
 	me = frappe.db.escape(user)
 	return f"(`tabCRM Campaign`.owner = {me} or `tabCRM Campaign`.campaign_owner = {me})"
@@ -15,14 +15,14 @@ def campaign_query_conditions(user=None):
 
 def campaign_has_permission(doc, ptype=None, user=None, debug=False):
 	user = user or frappe.session.user
-	if is_manager(user) or ptype == "create":
+	if is_campaign_manager(user) or ptype == "create":
 		return True
 	return user in (doc.owner, doc.get("campaign_owner"))
 
 
 def recipient_query_conditions(user=None):
 	user = user or frappe.session.user
-	if is_manager(user):
+	if is_campaign_manager(user):
 		return ""
 	me = frappe.db.escape(user)
 	return (
@@ -33,7 +33,7 @@ def recipient_query_conditions(user=None):
 
 def recipient_has_permission(doc, ptype=None, user=None, debug=False):
 	user = user or frappe.session.user
-	if is_manager(user):
+	if is_campaign_manager(user):
 		return True
 	if ptype not in (None, "read", "report", "export"):
 		return False
@@ -43,7 +43,7 @@ def recipient_has_permission(doc, ptype=None, user=None, debug=False):
 
 def automation_query_conditions(user=None):
 	user = user or frappe.session.user
-	if is_manager(user):
+	if is_campaign_manager(user):
 		return ""
 	me = frappe.db.escape(user)
 	return f"(`tabCRM Campaign Automation`.owner = {me} or `tabCRM Campaign Automation`.automation_owner = {me})"
@@ -51,6 +51,6 @@ def automation_query_conditions(user=None):
 
 def automation_has_permission(doc, ptype=None, user=None, debug=False):
 	user = user or frappe.session.user
-	if is_manager(user) or ptype == "create":
+	if is_campaign_manager(user) or ptype == "create":
 		return True
 	return user in (doc.owner, doc.get("automation_owner"))

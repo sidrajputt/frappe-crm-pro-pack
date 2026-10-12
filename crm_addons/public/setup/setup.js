@@ -113,6 +113,9 @@
 			const itemMap = {}; SCHEMA.forEach((g) => g.items.forEach((it) => { if (it.k) { itemMap[it.k] = it; it.group = g.key } }))
 
 			const norm = (it, v) => (it && it.t === 'switch' ? (v ? 1 : 0) : it && (it.t === 'num') ? (v === '' || v == null ? 0 : Number(v)) : it && it.t === 'money' ? (v === '' || v == null ? '' : Number(v)) : v == null ? '' : v)
+			const rolesOfDraft = (k) => String(draft[k] || '').split(',').map((r) => r.trim()).filter(Boolean)
+			const hasRole = (k, role) => rolesOfDraft(k).includes(role)
+			function toggleRole(k, role) { const cur = rolesOfDraft(k); draft[k] = (cur.includes(role) ? cur.filter((r) => r !== role) : [...cur, role]).join(', ') }
 			function load(values) { server.value = values; Object.keys(draft).forEach((k) => delete draft[k]); Object.assign(draft, JSON.parse(JSON.stringify(values))) }
 			async function init() {
 				loading.value = true; error.value = ''; denied.value = false
@@ -185,7 +188,7 @@
 			async function copy(text) { try { await navigator.clipboard.writeText(text); say('Copied') } catch (e) { say('Select the text and copy it.', 'err') } }
 			const stateText = { ok: 'Ready', todo: 'Needs setup', optional: 'Optional' }
 			const urls = (c) => (c.steps || []).map((s) => { const m = /(https?:\/\/\S+)/.exec(s); return m ? m[1] : '' })
-			return { loading, error, denied, draft, server, choices, status, tab, q, groups, visible, noResults, term, saving, toast, open, test, rechecking, dirtyKeys, problems, problem, met, lockText, optionsOf, init, save, discard, go, goToField, recheck, testGoogle, copy, stateText, urls, SCHEMA, parentLabel, itemMap }
+			return { hasRole, toggleRole, loading, error, denied, draft, server, choices, status, tab, q, groups, visible, noResults, term, saving, toast, open, test, rechecking, dirtyKeys, problems, problem, met, lockText, optionsOf, init, save, discard, go, goToField, recheck, testGoogle, copy, stateText, urls, SCHEMA, parentLabel, itemMap }
 		},
 		template: `
 		<div class="shell">
@@ -251,6 +254,7 @@
 										<template v-else-if="it.t === 'num'"><input :id="'f-' + it.k" class="inp num" type="number" inputmode="numeric" :min="it.min" :max="it.max" step="1" v-model="draft[it.k]" :disabled="!met(it)" /><span class="unit">{{ it.unit }}</span></template>
 										<template v-else-if="it.t === 'money'"><input :id="'f-' + it.k" class="inp num" type="number" inputmode="decimal" min="0" step="any" :placeholder="it.placeholder" v-model="draft[it.k]" :disabled="!met(it)" /></template>
 										<select v-else-if="it.t === 'select'" :id="'f-' + it.k" class="inp" v-model="draft[it.k]" :disabled="!met(it)"><option v-if="it.empty" value="">{{ it.empty }}</option><option v-for="o in optionsOf(it)" :key="o.value" :value="o.value">{{ o.label }}</option></select>
+										<div v-else-if="it.t === 'roles'" class="rolechips" role="group" :aria-label="it.label"><button v-for="o in optionsOf(it)" :key="o.value" type="button" class="rolechip" :class="{ on: hasRole(it.k, o.value) }" :aria-pressed="hasRole(it.k, o.value)" :disabled="!met(it)" @click="toggleRole(it.k, o.value)"><Ico v-if="hasRole(it.k, o.value)" name="check" :size="13" />{{ o.label }}</button></div>
 										<textarea v-else-if="it.t === 'area'" :id="'f-' + it.k" class="inp area" rows="3" v-model="draft[it.k]" :disabled="!met(it)"></textarea>
 										<input v-else :id="'f-' + it.k" class="inp" type="text" :placeholder="it.placeholder" v-model="draft[it.k]" :disabled="!met(it)" autocomplete="off" />
 									</div>

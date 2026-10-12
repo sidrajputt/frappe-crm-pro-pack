@@ -337,6 +337,12 @@ def _check_user():
 		frappe.throw(_(MIGRATE_HINT).format(site=frappe.local.site))
 
 
+def _require_manager():
+	from crm_addons.campaigns.api import _require_manager as require
+
+	require(_("create or edit automations"))
+
+
 def trigger_text(a):
 	if a.trigger_event == "Lead status changed":
 		return _("A lead's status changes to {0}").format(a.trigger_status) if a.trigger_status else _("A lead's status changes")
@@ -415,6 +421,7 @@ def get_automation(name):
 def save_automation(data, name=None):
 	"""Create or update an automation. ``data.enabled`` switches it on or off in the same save."""
 	_check_user()
+	_require_manager()
 	data = frappe.parse_json(data)
 	if name:
 		doc = _get(name, "write")
@@ -444,6 +451,7 @@ def save_automation(data, name=None):
 
 @frappe.whitelist()
 def set_enabled(name, enabled):
+	_require_manager()
 	doc = _get(name, "write")
 	doc.enabled = 1 if cint(enabled) else 0
 	doc.save()
@@ -452,6 +460,7 @@ def set_enabled(name, enabled):
 
 @frappe.whitelist()
 def delete_automation(name):
+	_require_manager()
 	doc = _get(name, "delete")
 	frappe.delete_doc(AUTOMATION, doc.name)
 	return True
@@ -459,6 +468,7 @@ def delete_automation(name):
 
 @frappe.whitelist()
 def duplicate_automation(name):
+	_require_manager()
 	src = _get(name)
 	doc = frappe.new_doc(AUTOMATION)
 	for field in FIELDS:

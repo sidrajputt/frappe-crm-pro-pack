@@ -64,8 +64,8 @@ The engine (`campaigns/engine.py`) knows nothing about email or WhatsApp. A chan
 
 | Existing piece | Used for |
 |---|---|
-| `crm_addons.permissions` pattern and `utils.is_manager` | Campaign visibility and actions (managers: all; users: their own) |
-| Existing roles (System Manager, Sales Manager, Sales User) | No new roles |
+| `crm_addons.permissions` pattern and `utils.is_campaign_manager` | Campaign visibility and actions (managers and Campaign Managers: all; users: their own) |
+| Existing roles (System Manager, Sales Manager, Sales User) plus one new role, **Campaign Manager** | Who can create and change campaigns (see *Who can do what* below) |
 | `CRM Addons Settings` | Batch size, rate limit, retries, WhatsApp consent mode, country code |
 | `CRM Lead` and its fields | Recipients and personalization variables (discovered from the live meta, nothing hard-coded) |
 | `CRM View Settings` | Saved segments (the saved filters of the Leads list) |
@@ -76,6 +76,23 @@ The engine (`campaigns/engine.py`) knows nothing about email or WhatsApp. A chan
 | frappe_whatsapp `WhatsApp Message`, `WhatsApp Templates`, `WhatsApp Account` + its webhook | WhatsApp sending, Meta approval status, delivery and read status |
 
 Not duplicated: no second WhatsApp client, no second template system for WhatsApp, no second mail sender.
+
+
+## Who can do what
+
+The **Campaign Manager** role is created on install and on every `bench migrate`. Give it to the marketing person in Desk (the CRM Users screen only shows Admin, Manager and Sales User), together with **Sales User**.
+
+| | Sales User | Sales Manager, System Manager, Campaign Manager |
+|---|---|---|
+| See campaigns, results, reports and the Campaigns dashboard | Yes (campaigns they own or run) | Yes, all campaigns |
+| Create, edit, duplicate and launch campaigns | No | Yes |
+| Create and change automations (including turning them on and off) | No | Yes |
+| Create and change email templates and campaign templates | No | Yes |
+| Pause, resume, cancel, retry failed messages | On campaigns they own | Yes |
+
+The **Campaigns** button and menu link in CRM are controlled separately, in the setup page under *Campaign Manager* > *Who sees the Campaigns shortcuts*: tick the roles that should see them (nothing ticked: everyone sees them).
+
+The server enforces the table above: the screens only hide what the person cannot use. Meetings and follow-ups keep their own rules and do not change.
 
 ## New components
 
@@ -392,7 +409,7 @@ Manual on staging, with a handful of your own test leads:
 | Queue | A 500+ lead campaign sends in batches within the per-minute cap; the page shows progress. |
 | Duplicates | Click Launch twice, refresh during launch, restart the workers mid-campaign: nobody receives two messages. |
 | Failures | Disable the Email Account or use a bad number: failures are recorded with a reason, other recipients continue. *Retry failed* re-queues only messages that never reached the provider. |
-| Permissions | A Sales User sees only their own campaigns and cannot launch someone else's; a Sales Manager sees all. |
+| Permissions | A Sales User can only look: they cannot create, edit, duplicate or launch a campaign, automation or template. A Sales Manager, System Manager or Campaign Manager sees all campaigns and can do all of that. |
 | Opt-outs | Reply STOP to a test WhatsApp message; the next campaign skips that number as "Opted out". |
 | Webhooks | Delivery and read receipts update the recipient within seconds (check the webhook in frappe_whatsapp is reachable from Meta). |
 | Email status | With *Track Email Status* on, opens appear; without it, the Opened metric is hidden. |

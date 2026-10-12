@@ -169,6 +169,9 @@ Open it from the **Campaigns** button on the Leads list or Kanban view, or go to
 |---|---|---|---|
 | System Manager, Sales Manager, Administrator | See and edit all | See and edit all | Whole team, or one person |
 | Sales User | Meetings they created, organise or were invited to; edit only their own | Their own | Their own numbers only |
+| Campaign Manager (new role, give it with Sales User) | Their own, like a Sales User | Their own | Their own numbers only |
+
+**Campaigns:** Sales Users can only look at campaigns, the dashboards and reports. System Managers, Sales Managers and Campaign Managers create and edit campaigns, automations and templates, and see every campaign. Which roles see the Campaigns button and menu link is a setup-page option (*Campaign Manager* > *Who sees the Campaigns shortcuts*; nothing ticked means everyone).
 
 Sales users can only schedule on leads they are allowed to see in CRM. The dashboard and its export enforce the same rules on the server, so a sales user cannot see another person's numbers by changing the address.
 

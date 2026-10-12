@@ -37,6 +37,15 @@ def _values():
 	return out
 
 
+def _crm_roles():
+	"""Roles that can work with leads (plus Campaign Manager): the ones it makes sense to pick for a CRM shortcut."""
+	names = set(frappe.get_all("DocPerm", filters={"parent": "CRM Lead", "read": 1}, pluck="role"))
+	names |= set(frappe.get_all("Custom DocPerm", filters={"parent": "CRM Lead", "read": 1}, pluck="role"))
+	names |= {"System Manager", "Sales Manager", "Sales User", "Campaign Manager"}
+	enabled = set(frappe.get_all("Role", filters={"disabled": 0, "name": ["in", list(names)]}, pluck="name"))
+	return sorted(enabled - {"Administrator", "Guest", "All"})
+
+
 def _choices():
 	"""Lists the page needs for its drop-downs."""
 	statuses = frappe.get_all("CRM Lead Status", pluck="name", order_by="position asc") if frappe.db.exists("DocType", "CRM Lead Status") else []
@@ -45,6 +54,7 @@ def _choices():
 		"lead_statuses": statuses,
 		"google_calendars": [{"value": c.name, "label": c.name + ("" if c.enable and c.push_to_google_calendar else " (not ready)")} for c in calendars],
 		"providers": ["Google Meet", "Manual Link"],
+		"roles": _crm_roles(),
 	}
 
 

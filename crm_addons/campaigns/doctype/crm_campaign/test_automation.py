@@ -283,8 +283,10 @@ class TestAutomationApi(Autos):
 		self.assertNotIn(doc.name, [r["name"] for r in automation.list_automations()])
 		with self.assertRaises(frappe.PermissionError):
 			automation.get_automation(doc.name)
-		mine = automation.save_automation(json.dumps({"automation_name": "Mine", "trigger_event": "Lead created", "actions": [{"action": "Add a note to the lead", "value": "x"}]}))
-		self.assertIn(mine["name"], [r["name"] for r in automation.list_automations()])
+		payload = json.dumps({"automation_name": "Mine", "trigger_event": "Lead created", "actions": [{"action": "Add a note to the lead", "value": "x"}]})
+		for call in (lambda: automation.save_automation(payload), lambda: automation.duplicate_automation(doc.name), lambda: automation.set_enabled(doc.name, 1), lambda: automation.delete_automation(doc.name)):
+			with self.assertRaises(frappe.PermissionError):
+				call()
 
 	def test_the_config_lists_what_the_page_offers(self):
 		from crm_addons.campaigns import api

@@ -621,7 +621,7 @@
 				onclick: function () { bridge().then(function (b) { b.openCalendar({ reference_doctype: r.doctype, view: 'agenda' }) }).catch(function (err) { toast(err.message, true) }) },
 			}, [svg('calendar'), h('span', { text: 'Meetings' })])
 		)
-		if (c.campaigns_enabled) {
+		if (c.campaigns_enabled && c.show_campaigns_shortcut) {
 			kids.push(h('button', { type: 'button', class: 'cra-fab-btn', title: 'Campaign Manager', onclick: function () { openCampaigns() } }, [svg('send'), h('span', { text: 'Campaigns' })]))
 		}
 		if (c.follow_ups_enabled) {
@@ -666,7 +666,7 @@
 			key: 'meetings', label: 'Meetings', icon: 'calendar', title: 'Meetings',
 			run: function () { bridge().then(function (b) { b.openCalendar({ reference_doctype: 'CRM Lead', view: 'agenda' }) }).catch(function (err) { toast(err.message, true) }) },
 		})
-		if (c.campaigns_enabled) list.push({ key: 'campaigns', label: 'Campaigns', icon: 'send', title: 'Campaign Manager', run: function () { openCampaigns() } })
+		if (c.campaigns_enabled && c.show_campaigns_shortcut) list.push({ key: 'campaigns', label: 'Campaigns', icon: 'send', title: 'Campaign Manager', run: function () { openCampaigns() } })
 		return list
 	}
 

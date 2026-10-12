@@ -17,7 +17,14 @@
 	const App = {
 		setup() {
 			const r = CM.route
+			// who can only look is never shown an editor: a write route opens the matching list instead (once the config is known)
+			const READ_ONLY_VIEW = { CampaignWizard: { comp: 'CampaignList', key: 'list' }, AutomationEditor: { comp: 'AutomationList', key: 'alist' }, EmailEditorRoute: { comp: 'EmailTemplates', key: 'email' } }
 			const view = computed(() => {
+				const v = routeView()
+				const cfg = CM.shared.config
+				return cfg && !cfg.is_manager && READ_ONLY_VIEW[v.comp] ? READ_ONLY_VIEW[v.comp] : v
+			})
+			function routeView() {
 				const p = r.parts
 				switch (p[0]) {
 					case 'new': return { comp: 'CampaignWizard', key: 'new' }
@@ -40,7 +47,7 @@
 							return { comp: 'AutomationList', key: 'alist' }
 					default: return { comp: 'CampaignList', key: 'list' }
 				}
-			})
+			}
 			const active = computed(() => { const p = r.parts; return p[0] === 'templates' ? (p[1] === 'whatsapp' ? 'whatsapp' : 'email') : p[0] === 'audiences' ? 'audiences' : p[0] === 'reports' ? 'reports' : p[0] === 'hygiene' ? 'hygiene' : p[0] === 'automations' ? 'automations' : 'campaigns' })
 			onMounted(() => CM.loadShared())
 			// the left panel can shrink to icons only; the choice is remembered in this browser

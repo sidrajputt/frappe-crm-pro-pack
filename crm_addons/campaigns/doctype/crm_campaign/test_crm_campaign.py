@@ -573,6 +573,58 @@ class TestApiAndPermissions(Campaigns):
 		frappe.set_user(mgr.name)
 		self.assertIn(doc.name, frappe.get_list(C, pluck="name"))
 
+	def test_sales_user_can_look_but_not_create_or_edit(self):
+		doc = self.make_campaign()
+		user = self.make_user("look.camp@example.org", "Sales User")
+		frappe.set_user(user.name)
+		self.assertFalse(api.get_config()["is_manager"])
+		with self.assertRaises(frappe.PermissionError):
+			api.save_campaign({"campaign_name": "Mine"})
+		with self.assertRaises(frappe.PermissionError):
+			api.save_campaign({"campaign_name": "Renamed"}, name=doc.name)
+		with self.assertRaises(frappe.PermissionError):
+			api.duplicate_campaign(doc.name)
+
+	def test_the_campaigns_shortcut_follows_the_roles_chosen_in_setup(self):
+		from crm_addons import api as root_api
+
+		def shown(user):
+			frappe.set_user(user)
+			return root_api.get_client_config()["show_campaigns_shortcut"]
+
+		sales = self.make_user("short.camp@example.org", "Sales User")
+		frappe.set_user("Administrator")
+		frappe.db.set_single_value("CRM Addons Settings", "campaign_shortcut_roles", "")
+		frappe.clear_document_cache("CRM Addons Settings", "CRM Addons Settings")
+		self.assertEqual(shown(sales.name), 1)  # nothing chosen: everyone
+		frappe.set_user("Administrator")
+		frappe.db.set_single_value("CRM Addons Settings", "campaign_shortcut_roles", "Sales Manager, Campaign Manager")
+		frappe.clear_document_cache("CRM Addons Settings", "CRM Addons Settings")
+		self.assertEqual(shown(sales.name), 0)
+		self.assertEqual(shown("Administrator"), 1)
+
+	def test_campaign_manager_role_sees_every_campaign(self):
+		from crm_addons import install
+		from crm_addons.utils import is_campaign_manager, is_manager
+
+		doc = self.make_campaign()
+		install.ensure_campaign_role()
+		install.ensure_campaign_role()  # idempotent
+		user = self.make_user("cm.camp@example.org", "Sales User")
+		frappe.set_user(user.name)
+		self.assertFalse(is_campaign_manager())
+		self.assertNotIn(doc.name, frappe.get_list(C, pluck="name"))
+		frappe.set_user("Administrator")
+		user.add_roles("Campaign Manager")
+		frappe.set_user(user.name)
+		self.assertTrue(is_campaign_manager())
+		self.assertFalse(is_manager())  # meetings and follow-ups are not widened
+		self.assertTrue(api.get_config()["is_manager"])
+		self.assertIn(doc.name, frappe.get_list(C, pluck="name"))
+		self.assertEqual(api.get_campaign(doc.name)["name"], doc.name)
+		copy = api.duplicate_campaign(doc.name)
+		self.assertTrue(copy["name"])
+
 	def test_only_the_administrator_and_system_managers_are_offered_settings(self):
 		self.assertTrue(api.get_config()["can_configure"])  # the test user is the Administrator
 		sysmgr = self.make_user("sysmgr.camp@example.org", "Sales Manager")

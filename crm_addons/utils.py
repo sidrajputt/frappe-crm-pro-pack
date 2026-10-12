@@ -9,6 +9,7 @@ from frappe.utils import escape_html, get_datetime, get_url
 from crm_addons import debuglog
 
 MANAGER_ROLES = ("System Manager", "Sales Manager")
+CAMPAIGN_ROLE = "Campaign Manager"
 REFERENCE_DOCTYPES = ("CRM Lead",)
 
 # Where each supported record lives in the CRM UI, and which fields describe it.
@@ -25,6 +26,20 @@ def is_manager(user=None):
 	"""Administrators, System Managers and Sales Managers can see every meeting."""
 	user = user or frappe.session.user
 	return user == "Administrator" or bool(set(MANAGER_ROLES) & set(frappe.get_roles(user)))
+
+
+def is_campaign_manager(user=None):
+	"""Who can create and change campaigns, automations and templates, and sees every campaign: the managers, plus the
+	Campaign Manager role. Meetings and follow-ups keep using is_manager()."""
+	user = user or frappe.session.user
+	return is_manager(user) or CAMPAIGN_ROLE in frappe.get_roles(user)
+
+
+def campaigns_shortcut_visible(settings=None, user=None):
+	"""The Campaigns button and menu link show to everyone, or only to the roles chosen in the setup page."""
+	settings = settings or get_settings()
+	wanted = {r.strip() for r in (settings.get("campaign_shortcut_roles") or "").replace("\n", ",").split(",") if r.strip()}
+	return not wanted or bool(wanted & set(frappe.get_roles(user or frappe.session.user)))
 
 
 def crm_url(reference_doctype, reference_docname):

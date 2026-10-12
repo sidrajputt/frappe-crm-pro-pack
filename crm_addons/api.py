@@ -12,6 +12,8 @@ from crm_addons.utils import (
 	REFERENCE_META,
 	get_reference_info,
 	get_settings,
+	campaigns_shortcut_visible,
+	is_campaign_manager,
 	is_manager,
 	user_details,
 )
@@ -141,6 +143,8 @@ def get_client_config():
 		"show_sidebar_links": cint(settings.get("show_sidebar_links")),
 		"show_follow_up_button": cint(settings.get("show_follow_up_button")),
 		"hide_deals_menu": cint(settings.get("hide_deals_menu")),
+		"can_manage_campaigns": 1 if is_campaign_manager() else 0,
+		"show_campaigns_shortcut": 1 if campaigns_shortcut_visible(settings) else 0,
 		"deals_enabled": 0 if cint(settings.get("hide_deals_menu")) else 1,  # dashboards leave deal numbers out for a team that does not use Deals
 		"hide_notes_menu": cint(settings.get("hide_notes_menu")),
 		"hide_tasks_menu": cint(settings.get("hide_tasks_menu")),

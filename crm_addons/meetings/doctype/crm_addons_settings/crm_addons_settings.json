@@ -49,6 +49,7 @@
   "hide_lead_notes_tab",
   "campaigns_section",
   "campaigns_enabled",
+  "campaign_shortcut_roles",
   "campaign_batch_size",
   "campaign_rate_per_minute",
   "campaign_max_retries",
@@ -348,6 +349,13 @@
    "fieldtype": "Check",
    "label": "Enable Campaign Manager",
    "default": "1"
+  },
+  {
+   "fieldname": "campaign_shortcut_roles",
+   "fieldtype": "Small Text",
+   "label": "Roles that see the Campaigns shortcuts",
+   "depends_on": "campaigns_enabled",
+   "description": "Comma-separated role names. Only people with one of these roles see the Campaigns button and menu link in CRM. Leave empty to show them to everyone."
   },
   {
    "fieldname": "campaign_batch_size",

@@ -205,7 +205,7 @@
 			</div>
 			<div v-if="loading" class="tgrid"><div v-for="n in 6" :key="n" class="card"><Skel h="190" r="12" /><div class="tcard-b"><Skel w="60%" h="14" /><Skel w="90%" h="12" /></div></div></div>
 			<ErrorState v-else-if="error" :message="error" @retry="load" />
-			<Empty v-else-if="!shown.length" icon="mail" :title="items.length ? 'No templates match' : 'No email templates yet'" :text="items.length ? 'Try a different search or filter.' : 'Create your first template with the visual builder, or paste your own HTML.'"><Btn v-if="isManager() && !items.length" variant="primary" icon="plus" @click="createOpen = true">Create template</Btn></Empty>
+			<Empty v-else-if="!shown.length" icon="mail" :title="items.length ? 'No templates match' : 'No email templates yet'" :text="items.length ? 'Try a different search or filter.' : (isManager() ? 'Create your first template with the visual builder, or paste your own HTML.' : 'Templates your team creates will show up here.')"><Btn v-if="isManager() && !items.length" variant="primary" icon="plus" @click="createOpen = true">Create template</Btn></Empty>
 			<div v-else class="tgrid">
 				<article v-for="t in shown" :key="t.name" class="tcard card hover" tabindex="0" @click="open(t)" @keydown.enter="open(t)">
 					<div class="tcard-th"><Thumb :html="CM.sampleFill(t.body_html)" /><button type="button" class="star" :class="{ on: favs.includes(t.name) }" :aria-pressed="favs.includes(t.name)" :aria-label="favs.includes(t.name) ? 'Remove from favourites' : 'Add to favourites'" @click.stop="toggleFav(t.name)"><Ico name="star" /></button><span v-if="!t.enabled" class="badge neutral nodot arch">Archived</span></div>

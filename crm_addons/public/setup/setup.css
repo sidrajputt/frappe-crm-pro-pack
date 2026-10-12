@@ -151,3 +151,11 @@ h1, h2, h3 { font-stretch: 90%; }
 .savebar { box-shadow: none; } .savebar-in { padding: 12px 24px; }
 .toast { border-radius: 6px; }
 @media (max-width: 860px) { .tabb.on::before { display: none; } .tabb { border-radius: 6px; } }
+
+/* role chooser: toggle chips, a tick on the chosen ones */
+.rolechips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-start; max-width: 420px; }
+.rolechip { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 4px; background: var(--surface); color: var(--soft); font-size: 13px; }
+.rolechip:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }
+.rolechip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.rolechip:disabled { opacity: .55; cursor: not-allowed; }
+@media (max-width: 860px) { .rolechips { justify-content: flex-start; } }

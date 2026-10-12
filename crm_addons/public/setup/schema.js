@@ -102,6 +102,8 @@ window.SETUP_SCHEMA = [
 		items: [
 			{ k: 'campaigns_enabled', t: 'switch', label: 'Use the Campaign Manager',
 				info: { what: 'Shows the Campaigns buttons and the Campaign Manager page. Off hides them. Campaigns you already made are kept.' } },
+			{ k: 'campaign_shortcut_roles', t: 'roles', choices: 'roles', label: 'Who sees the Campaigns shortcuts', when: 'campaigns_enabled',
+				info: { what: 'Choose the roles that see the Campaigns button and menu link in CRM. Nothing chosen: everyone sees them.', note: 'Only hides the shortcuts. What a person can do in the Campaign Manager is set by their role (Sales User can only look; Sales Manager and Campaign Manager can create).' } },
 			{ h: 'Sending speed' },
 			{ k: 'campaign_batch_size', t: 'num', label: 'Messages per batch', unit: 'messages', min: 1, max: 5000, when: 'campaigns_enabled',
 				info: { what: 'How many messages are handed to the background workers in one go, per campaign. Every minute the scheduler hands over another batch.', eg: '100 with a limit of 300 a minute means up to 100 each minute.' } },

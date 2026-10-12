@@ -43,28 +43,30 @@
 				if (!(await CM.confirm({ title: 'Delete "' + r.automation_name + '"?', message: r.runs ? 'It stops now. Messages it already sent stay in the Campaign Manager reports, and notes and follow-ups it made stay on the leads.' : 'It has not run for any lead yet.', confirmText: 'Delete automation', danger: true }))) return
 				try { await CM.auto('delete_automation', { name: r.name }); CM.toast('Automation deleted'); load() } catch (e) { CM.toast(e.message, 'err') }
 			}
-			const menu = (r) => [{ label: 'Edit', icon: 'edit', run: () => CM.go('/automations/edit/' + encodeURIComponent(r.name)) }, r.campaign && { label: 'Messages and results', icon: 'chart', run: () => CM.go('/c/' + encodeURIComponent(r.campaign)) }, { label: 'Duplicate', icon: 'copy', run: () => dup(r) }, { sep: true }, { label: 'Delete', icon: 'trash', danger: true, run: () => del(r) }].filter(Boolean)
+			const canManage = computed(() => !!(CM.shared.config && CM.shared.config.is_manager))
+			const menu = (r) => !canManage.value ? [r.campaign && { label: 'Messages and results', icon: 'chart', run: () => CM.go('/c/' + encodeURIComponent(r.campaign)) }].filter(Boolean) : [{ label: 'Edit', icon: 'edit', run: () => CM.go('/automations/edit/' + encodeURIComponent(r.name)) }, r.campaign && { label: 'Messages and results', icon: 'chart', run: () => CM.go('/c/' + encodeURIComponent(r.campaign)) }, { label: 'Duplicate', icon: 'copy', run: () => dup(r) }, { sep: true }, { label: 'Delete', icon: 'trash', danger: true, run: () => del(r) }].filter(Boolean)
 			const PRESETS = [
 				{ key: 'welcome', icon: 'users', title: 'Welcome every new lead', text: 'When a lead is created, send them a first email.' },
 				{ key: 'reply', icon: 'inbox', title: 'Follow up when a lead replies', text: 'Create a follow-up for the owner the day after a reply.' },
 				{ key: 'click', icon: 'link', title: 'Act on interest', text: 'When a lead clicks a link, change their status and remind the owner.' },
 			]
-			return { rows, loading, error, q, busy, load, toggle, menu, PRESETS, ACTION_INFO, CM, go: CM.go }
+			return { rows, loading, error, q, busy, canManage, load, toggle, menu, PRESETS, ACTION_INFO, CM, go: CM.go }
 		},
 		template: `
 		<div class="page">
-			<div class="pg-head"><div class="grow"><h1>Automations</h1><p>Do things for you when something happens to a lead: send messages, change a status, create a follow-up. Each lead goes through an automation once.</p></div><div class="actions"><Btn variant="primary" icon="plus" @click="go('/automations/new')">Create automation</Btn></div></div>
+			<div class="pg-head"><div class="grow"><h1>Automations</h1><p>Do things for you when something happens to a lead: send messages, change a status, create a follow-up. Each lead goes through an automation once.</p></div><div v-if="canManage" class="actions"><Btn variant="primary" icon="plus" @click="go('/automations/new')">Create automation</Btn></div></div>
 			<div v-if="rows.length || q" class="row wrap tool"><div style="width:280px;max-width:100%"><Inp v-model="q" icon="search" placeholder="Search automations" clearable aria-label="Search automations" /></div></div>
 			<div v-if="loading" class="card pad col"><Skel v-for="n in 3" :key="n" h="64" /></div>
 			<ErrorState v-else-if="error" :message="error" @retry="load" />
 			<template v-else-if="!rows.length && !q">
-				<div class="card pad auto-start"><div class="grow"><h3>Start from an idea</h3><p class="small muted">Pick one, adjust it, and turn it on. You can change everything.</p></div></div>
-				<div class="auto-presets"><button v-for="p in PRESETS" :key="p.key" type="button" class="card hover auto-preset" @click="go('/automations/new?preset=' + p.key)"><span class="mi"><Ico :name="p.icon" size="lg" /></span><b>{{ p.title }}</b><span class="small muted">{{ p.text }}</span></button></div>
+				<Empty v-if="!canManage" icon="refresh" title="No automations yet" text="Automations your team sets up will show up here, with the messages they sent and the results." />
+				<div v-if="canManage" class="card pad auto-start"><div class="grow"><h3>Start from an idea</h3><p class="small muted">Pick one, adjust it, and turn it on. You can change everything.</p></div></div>
+				<div v-if="canManage" class="auto-presets"><button v-for="p in PRESETS" :key="p.key" type="button" class="card hover auto-preset" @click="go('/automations/new?preset=' + p.key)"><span class="mi"><Ico :name="p.icon" size="lg" /></span><b>{{ p.title }}</b><span class="small muted">{{ p.text }}</span></button></div>
 			</template>
 			<Empty v-else-if="!rows.length" icon="search" title="No automation matches" text="Try another word." />
 			<div v-else class="col" style="gap:10px">
 				<article v-for="r in rows" :key="r.name" class="card auto-row" :class="{ off: !r.enabled }">
-					<button type="button" class="sw" :class="{ on: r.enabled }" role="switch" :aria-checked="!!r.enabled" :aria-label="(r.enabled ? 'Turn off ' : 'Turn on ') + r.automation_name" :disabled="busy === r.name" @click="toggle(r)"><span class="sw-k"></span></button>
+					<button type="button" class="sw" :class="{ on: r.enabled }" role="switch" :aria-checked="!!r.enabled" :aria-label="(r.enabled ? 'Turn off ' : 'Turn on ') + r.automation_name" :disabled="busy === r.name || !canManage" @click="toggle(r)"><span class="sw-k"></span></button>
 					<div class="grow auto-main" role="link" tabindex="0" @click="go('/automations/edit/' + encodeURIComponent(r.name))" @keydown.enter="go('/automations/edit/' + encodeURIComponent(r.name))">
 						<div class="row" style="gap:8px"><b class="ellipsis">{{ r.automation_name }}</b><span v-if="!r.enabled" class="badge neutral nodot">Off</span><span v-else-if="r.campaign_status === 'Paused'" class="badge amber nodot">Messages paused</span></div>
 						<div class="small muted"><b>When</b> {{ r.trigger.charAt(0).toLowerCase() + r.trigger.slice(1) }}<span v-if="r.has_conditions"> and the lead matches your conditions</span></div>

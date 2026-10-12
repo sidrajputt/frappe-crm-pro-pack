@@ -49,7 +49,8 @@
 				if (!saveTpl.name.trim()) return CM.toast('Give the template a name.', 'warn')
 				try { await CM.api('save_as_template', { name: props.name, template_name: saveTpl.name, description: saveTpl.desc }); saveTpl.open = false; CM.toast('Saved as a campaign template') } catch (e) { CM.toast(e.message, 'err') }
 			}
-			const menu = computed(() => !c.value ? [] : [can('duplicate') && { label: 'Duplicate', icon: 'copy', run: dup }, CM.shared.config && CM.shared.config.is_manager && { label: 'Save as template', icon: 'bookmark', run: () => Object.assign(saveTpl, { open: true, name: c.value.campaign_name + ' template', desc: '' }) }, can('delete') && { sep: true }, can('delete') && { label: 'Delete', icon: 'trash', danger: true, run: del }].filter(Boolean))
+			const canManage = computed(() => !!(CM.shared.config && CM.shared.config.is_manager))
+			const menu = computed(() => !c.value ? [] : [canManage.value && can('duplicate') && { label: 'Duplicate', icon: 'copy', run: dup }, CM.shared.config && CM.shared.config.is_manager && { label: 'Save as template', icon: 'bookmark', run: () => Object.assign(saveTpl, { open: true, name: c.value.campaign_name + ' template', desc: '' }) }, canManage.value && can('delete') && { sep: true }, canManage.value && can('delete') && { label: 'Delete', icon: 'trash', danger: true, run: del }].filter(Boolean))
 
 			// ---- numbers (only what the integrations really report)
 			const chans = computed(() => (c.value ? c.value.channels : []))
@@ -129,7 +130,7 @@
 				try { await CM.api('opt_out_recipient', { recipient: r.name }); CM.toast('Added to the opt-out list') } catch (e) { CM.toast(e.message, 'err') }
 			}
 			const recMenu = (r) => (CM.shared.config && CM.shared.config.is_manager ? [{ label: 'Open lead', icon: 'external', run: () => CM.openCrm(null, CM.leadUrl(r.recipient_id)) }, { label: 'Opt out this address', icon: 'ban', danger: true, run: () => optOut(r) }] : [{ label: 'Open lead', icon: 'external', run: () => CM.openCrm(null, CM.leadUrl(r.recipient_id)) }])
-			return { canStep, stepBusy, toggleStep, triggerText, hoursText, res, money, range, anBusy, rangeText: computed(() => CM.rangeText(range.value)), deliveryParts, c, an, loading, error, busy, tab, saveTpl, can, load, pause, resume, cancel, retry, dup, saveAsTemplate, menu, chans, k, funnels, reasons, days, rec, loadRec, exportCsv, exporting, recMenu, REC_STATUS, COND, CM, mode, go: CM.go, open: (n) => CM.go(n), editUrl: () => CM.go('/campaigns/edit/' + encodeURIComponent(props.name)) }
+			return { canManage, canStep, stepBusy, toggleStep, triggerText, hoursText, res, money, range, anBusy, rangeText: computed(() => CM.rangeText(range.value)), deliveryParts, c, an, loading, error, busy, tab, saveTpl, can, load, pause, resume, cancel, retry, dup, saveAsTemplate, menu, chans, k, funnels, reasons, days, rec, loadRec, exportCsv, exporting, recMenu, REC_STATUS, COND, CM, mode, go: CM.go, open: (n) => CM.go(n), editUrl: () => CM.go('/campaigns/edit/' + encodeURIComponent(props.name)) }
 		},
 		template: `
 		<div class="page">
@@ -143,8 +144,8 @@
 						<div class="row wrap small muted" style="gap:14px;margin-top:6px"><ChannelBadges :channels="c.channels" :multi="false" /><span><Ico name="users" size="sm" /> {{ c.audience_label }}</span><span v-if="c.send_mode === 'Trigger'"><Ico name="refresh" size="sm" /> Automatic: {{ triggerText }}</span><span v-if="c.scheduled_at && c.send_mode === 'Schedule'"><Ico name="calendar" size="sm" /> {{ c.status === 'Scheduled' ? 'Sends' : 'Scheduled for' }} {{ CM.fmt(c.scheduled_at) }}</span><span v-else-if="c.started_at"><Ico name="clock" size="sm" /> Started {{ CM.fmt(c.started_at) }}</span><span><Ico name="user" size="sm" /> {{ c.owner_name }}</span></div>
 					</div>
 					<div class="actions">
-						<Btn v-if="can('launch')" variant="primary" icon="send" @click="go('/campaigns/edit/' + encodeURIComponent(name) + '?step=5')">Review and launch</Btn>
-						<Btn v-if="can('edit')" icon="edit" @click="editUrl">Edit</Btn>
+						<Btn v-if="canManage && can('launch')" variant="primary" icon="send" @click="go('/campaigns/edit/' + encodeURIComponent(name) + '?step=5')">Review and launch</Btn>
+						<Btn v-if="canManage && can('edit')" icon="edit" @click="editUrl">Edit</Btn>
 						<Btn v-if="can('pause')" icon="pause" :loading="busy === 'pause'" @click="pause">Pause</Btn>
 						<Btn v-if="can('resume')" variant="primary" icon="play" :loading="busy === 'resume'" @click="resume">Resume</Btn>
 						<Btn v-if="can('retry') && an && an.channels && k.some((x) => x.l === 'Failed' && x.v)" icon="retry" :loading="busy === 'retry_failed'" @click="retry">Retry failed</Btn>
@@ -155,7 +156,7 @@
 				<div v-if="c.health_note && ['Running', 'Paused'].includes(c.status)" class="alert err" role="alert"><Ico name="alert" /><div class="grow"><b>Needs attention.</b> {{ c.health_note }}</div></div>
 				<div v-if="c.window_enabled && !c.window_open_now && c.status === 'Running'" class="alert"><Ico name="clock" /><div class="grow">Outside the sending hours ({{ hoursText }}). Sending carries on {{ c.window_next_open ? CM.fmt(c.window_next_open) : 'when the hours open' }}.</div></div>
 				<div v-if="c.status_note" class="alert warn"><Ico name="info" /><div class="grow">{{ c.status_note }}</div></div>
-				<div v-if="c.status === 'Draft'" class="alert"><Ico name="info" /><div class="grow">This campaign is a draft. Nothing has been sent. <a href="#" @click.prevent="go('/campaigns/edit/' + encodeURIComponent(name) + '?step=5')">Review and launch</a> when you are ready.</div></div>
+				<div v-if="canManage && c.status === 'Draft'" class="alert"><Ico name="info" /><div class="grow">This campaign is a draft. Nothing has been sent. <a href="#" @click.prevent="go('/campaigns/edit/' + encodeURIComponent(name) + '?step=5')">Review and launch</a> when you are ready.</div></div>
 				<div class="row wrap tabs-row"><Tabs class="grow" v-model="tab" :items="[{ key: 'overview', label: 'Overview', icon: 'chart' }, { key: 'recipients', label: 'Recipients', icon: 'users', count: CM.num(c.total_recipients) }, { key: 'content', label: 'Journey and content', icon: 'layers' }]" /><template v-if="tab !== 'content'"><span v-if="anBusy" class="spin" style="width:14px;height:14px" role="status" aria-label="Updating"></span><DateRange v-model="range" any align="right" aria-label="Report dates" /></template></div>
 					<p v-if="tab !== 'content' && range.preset !== 'any'" class="rng-note">Showing messages from <b>{{ rangeText }}</b> only. Choose <b>Any time</b> to see the whole campaign.</p>
 
